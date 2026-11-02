@@ -1,0 +1,1565 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Fold, pinch flex, V-flex and turn over a simulated trihexaflexagon and hexahexaflexagon in 3D.">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Hexaflexagon Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500&display=swap">
+<style>
+/* Layout: a workbench. The folded model sits large on the left, the controls and face map on the right, the printable strip below. */
+:root {
+  --bg: #f2efe8;
+  --fg: #1f1d1a;
+  --muted: #6a6459;
+  --rule: #d6cfc1;
+  --panel: #faf8f3;
+  --stage: #e9e4d8;
+  --accent: #b5422a;
+  --accent-fg: #ffffff;
+  --edge: #3b342a;
+  --display: "Newsreader", Georgia, "Times New Roman", serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #151412;
+    --fg: #ece7dd;
+    --muted: #a39b8c;
+    --rule: #37332c;
+    --panel: #1d1b18;
+    --stage: #23211d;
+    --accent: #e7765a;
+    --accent-fg: #1a0f0b;
+    --edge: #14110d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #151412;
+  --fg: #ece7dd;
+  --muted: #a39b8c;
+  --rule: #37332c;
+  --panel: #1d1b18;
+  --stage: #23211d;
+  --accent: #e7765a;
+  --accent-fg: #1a0f0b;
+  --edge: #14110d;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 56px;
+}
+main { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 500; line-height: 1.12; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2.1rem, 5vw, 3.2rem); letter-spacing: -0.01em; }
+h2 { font-size: 1.55rem; }
+h3 { font-size: 1.15rem; }
+p { margin: 0; max-width: 66ch; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); }
+.muted { color: var(--muted); }
+header { display: flex; flex-direction: column; gap: 12px; }
+.lede { font-size: 1.08rem; }
+
+.bench { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 860px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+
+.stage {
+  position: relative;
+  background: var(--stage);
+  border-radius: 8px;
+  aspect-ratio: 1 / 1;
+  max-width: 100%;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+}
+.stage:active { cursor: grabbing; }
+.stage canvas { display: block; width: 100%; height: 100%; }
+.stage-note {
+  position: absolute; left: 12px; bottom: 10px; right: 12px;
+  font-family: var(--mono); font-size: 0.72rem; color: var(--muted);
+  pointer-events: none;
+}
+.stage-msg {
+  position: absolute; left: 50%; top: 14px; transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  background: var(--panel); color: var(--fg);
+  border: 1px solid var(--rule); border-radius: 999px;
+  padding: 6px 14px; font-size: 0.86rem; text-align: center;
+  pointer-events: none;
+}
+.loading {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  color: var(--muted); font-family: var(--mono); font-size: 0.8rem; text-align: center; padding: 24px;
+}
+
+.stagecol { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.guide { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+.guide-top { display: flex; align-items: center; gap: 12px; }
+.guide-top .chk { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); cursor: pointer; }
+.guide-top .chk input { accent-color: var(--accent); margin: 0; }
+.guide p.note { min-height: 0; font-size: 0.82rem; }
+.guide p { font-size: 0.95rem; min-height: 4.6em; }
+.dots { display: inline-flex; gap: 5px; }
+.dots span { width: 22px; height: 4px; border-radius: 2px; background: var(--rule); }
+.dots span.on { background: var(--fg); }
+.dots span.cur { background: var(--accent); }
+#vg-scrub { width: 100%; accent-color: var(--accent); margin: 2px 0; }
+.guide-btns { display: grid; grid-template-columns: 1fr 1fr 1.5fr; gap: 8px; }
+button.quiet { border-color: transparent; color: var(--muted); padding: 4px 8px; min-height: 30px; }
+.side { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.group { display: flex; flex-direction: column; gap: 10px; }
+.label { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 999px; padding: 3px; gap: 3px; flex-wrap: wrap; }
+.seg button { border: 0; border-radius: 999px; padding: 6px 14px; }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+
+button {
+  font: inherit; font-size: 0.9rem; color: var(--fg);
+  background: transparent; border: 1px solid var(--rule); border-radius: 6px;
+  padding: 8px 14px; cursor: pointer; min-height: 38px;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: 0.45; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+button.primary:hover:not(:disabled) { filter: brightness(1.06); }
+button[aria-pressed="true"].toggle { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.actions .primary { grid-column: 1 / -1; font-size: 1rem; min-height: 46px; }
+
+.faces { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.facecard { border: 1px solid var(--rule); border-radius: 6px; padding: 10px 12px; display: flex; gap: 12px; align-items: center; background: var(--panel); min-width: 0; }
+.hexchip { width: 40px; height: 40px; flex: none; }
+.facecard .num { font-family: var(--display); font-size: 1.5rem; line-height: 1; }
+.facecard .sub { font-size: 0.78rem; color: var(--muted); }
+
+.stats { display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--mono); font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats b { color: var(--fg); font-weight: 500; }
+
+.mapwrap { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 8px; }
+#facemap { display: block; width: 100%; height: auto; max-height: 260px; }
+#facemap text { font-family: var(--display); font-size: 17px; fill: #fff; pointer-events: none; }
+#facemap .edge { stroke: var(--rule); stroke-width: 2; }
+#facemap .edge.on { stroke: var(--fg); stroke-width: 3.5; }
+#facemap .ring { fill: none; stroke: var(--fg); stroke-width: 2.5; }
+
+.net-section { display: flex; flex-direction: column; gap: 16px; }
+.netscroll { overflow-x: auto; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 14px; }
+.netscroll svg { display: block; height: auto; }
+.netscroll .cap { font-family: var(--mono); font-size: 10px; fill: var(--muted); letter-spacing: 0.06em; }
+.netscroll .tri-num { font-family: var(--display); font-size: 15px; fill: #fff; }
+.netscroll .glue { font-family: var(--mono); font-size: 9px; fill: var(--muted); }
+
+.graph-section { display: flex; flex-direction: column; gap: 16px; }
+.graphscroll { position: relative; overflow-x: auto; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 10px 6px 4px; }
+#vgraph { display: block; width: 100%; min-width: 640px; height: auto; }
+#vgraph .gl { fill: none; stroke: var(--fg); stroke-opacity: 0.07; stroke-width: 1; }
+#vgraph .gl.hl { stroke: var(--accent); stroke-opacity: 0.55; }
+#vgraph .tri { fill: var(--muted); }
+#vgraph .hub { fill: var(--accent); stroke: var(--panel); stroke-width: 2; }
+#vgraph .col { fill: transparent; }
+#vgraph .col.on { fill: var(--fg); fill-opacity: 0.05; }
+#vgraph .tick { font-family: var(--mono); font-size: 11px; fill: var(--muted); text-anchor: middle; }
+#vgraph .hubname { font-family: var(--body); font-size: 12px; fill: var(--fg); paint-order: stroke; stroke: var(--panel); stroke-width: 4px; stroke-linejoin: round; }
+.gtip { position: absolute; pointer-events: none; background: var(--bg); color: var(--fg); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 10px; font-size: 0.82rem; line-height: 1.4; max-width: 220px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); }
+.gtip b { font-weight: 600; }
+.glegend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.85rem; color: var(--muted); }
+.gtable { border-collapse: collapse; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+.gtable th, .gtable td { text-align: left; padding: 5px 16px 5px 0; border-bottom: 1px solid var(--rule); }
+.gtable th { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 400; }
+.gtable td.n { text-align: right; }
+.gcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px 32px; align-items: start; }
+.gcols > div { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.gcols p { font-size: 0.95rem; }
+
+.about { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px 32px; }
+.about > div { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.about p { font-size: 0.95rem; }
+.legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+
+<main>
+  <header>
+    <span class="kicker">Paper folding · Live model</span>
+    <h1>Hexaflexagon Explorer</h1>
+    <p class="lede">A hexaflexagon is a hexagon folded from one strip of paper triangles and glued into a loop. Pinch three corners together and it turns inside out, bringing a hidden face to the top. The model below tracks every triangle of the glued strip, so each flex follows the same rules as the paper. Besides the classic pinch flex, the hexahexaflexagon can also do the V-flex, which breaks faces apart and mixes them.</p>
+  </header>
+
+  <section class="bench" aria-label="Interactive hexaflexagon">
+    <div class="stagecol">
+    <div class="stage" id="stage">
+      <div class="loading" id="loading">Loading the 3D view…</div>
+      <div class="stage-msg" id="msg" hidden></div>
+      <div class="stage-note" id="stage-note">Drag to turn the view, even underneath. Tap a corner to pinch there.</div>
+    </div>
+    <div class="guide" id="vguide" hidden>
+      <div class="guide-top">
+        <span class="label" id="vg-count">Step 1 of 4</span>
+        <span class="dots" id="vg-dots" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+        <label class="chk"><input type="checkbox" id="vg-labels" checked> Letters</label>
+        <button type="button" id="vg-cancel" class="quiet">Cancel</button>
+      </div>
+      <h3 id="vg-title"></h3>
+      <p id="vg-text" aria-live="polite"></p>
+      <input type="range" id="vg-scrub" min="0" max="272" step="1" value="0" aria-label="Position in the V-flex">
+      <div class="guide-btns">
+        <button type="button" id="vg-back">Back</button>
+        <button type="button" id="vg-play">Play all</button>
+        <button type="button" class="primary" id="vg-next">Show step 1</button>
+      </div>
+      <p class="note muted" id="vg-note">Letters a to i name the nine pieces that move as units, as in Sherman's pattern; each shows on both of its sides. The red ones, d, e and f, are the layers that have to slip past each other at the start of step 4. On paper, mark them the same way and watch which one bends.</p>
+    </div>
+    </div>
+
+    <div class="side">
+      <div class="group">
+        <span class="label">Flexagon</span>
+        <div class="seg" role="group" aria-label="Choose a flexagon">
+          <button type="button" id="m-tri" aria-pressed="true">Trihexa · 3 faces</button>
+          <button type="button" id="m-hexa" aria-pressed="false">Hexahexa · 6 faces</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="label">Do</span>
+        <div class="seg" role="group" aria-label="Choose a flex">
+          <button type="button" id="k-pinch" aria-pressed="true">Pinch flex</button>
+          <button type="button" id="k-v" aria-pressed="false">V-flex</button>
+        </div>
+        <p class="muted" id="kind-note" style="font-size:0.85rem" hidden>The V-flex needs a flexagon with four faces or more, so the trihexaflexagon can't do it. Switch to the hexahexaflexagon.</p>
+        <div class="actions">
+          <button type="button" class="primary" id="b-flex">Pinch flex</button>
+          <button type="button" id="b-corner">Use other corners</button>
+          <button type="button" id="b-rot">Rotate one step</button>
+          <button type="button" id="b-flip">Turn over</button>
+          <button type="button" id="b-auto" class="toggle" aria-pressed="false">Tuckerman tour</button>
+          <button type="button" id="b-reset" style="grid-column:1/-1">Start again</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="label">Showing now</span>
+        <div class="faces">
+          <div class="facecard"><svg class="hexchip" id="chip-top" viewBox="-1.1 -1.1 2.2 2.2" aria-hidden="true"></svg><div><div class="num" id="f-top">1</div><div class="sub">on top</div></div></div>
+          <div class="facecard"><svg class="hexchip" id="chip-bot" viewBox="-1.1 -1.1 2.2 2.2" aria-hidden="true"></svg><div><div class="num" id="f-bot">2</div><div class="sub">underneath</div></div></div>
+        </div>
+        <div class="stats" aria-live="polite">
+          <span>Flexes <b id="s-flex">0</b></span>
+          <span>V-flexes <b id="s-v">0</b></span>
+          <span>Faces seen <b id="s-seen">2 of 3</b></span>
+          <span>Top picture <b id="s-pic">centred</b></span>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="label">Face map</span>
+        <div class="mapwrap"><svg id="facemap" viewBox="-130 -125 260 250" role="img" aria-label="Which faces can appear together"></svg></div>
+        <p class="muted" style="font-size:0.85rem">Each line joins two faces that can show at the same time, one on top and one underneath. The thick line is the pair you see now. After a V-flex a side can show pieces of several faces; then every face in view is ringed and no line is thick.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="net-section" aria-labelledby="net-title">
+    <span class="kicker">Template</span>
+    <h2 id="net-title">The strip before gluing</h2>
+    <p class="muted" id="net-desc">Every triangle in the model has a front and a back. These are the face numbers each one carries, worked out by the same simulation. The rings show where to draw a picture so that it lines up when the face first appears.</p>
+    <div class="netscroll"><svg id="net" aria-label="Strip template, front and back"></svg></div>
+  </section>
+
+  <section class="graph-section" aria-labelledby="graph-title">
+    <span class="kicker">Pinch and V-flex together</span>
+    <h2 id="graph-title">The Tuckerman graph, extended</h2>
+    <p>With pinch flexes alone, the hexahexaflexagon's Tuckerman graph is the face map above: 6 faces and 9 lines, one line for each position. Once V-flexes are allowed, a side can show pieces of several faces, so faces stop working as points. Instead, take every position as a point and join two positions when one flex turns one into the other. The simulation builds that graph here from the starting fold, counting each position once however it is rotated or turned over.</p>
+    <p>Take away the V-flex links and the graph falls apart into small pieces that pinch flexes alone keep you inside. Two of them are the classic 9-position Tuckerman graph: the flexagon as you fold it, and a second copy whose faces are made of different triangles. Every other piece is a triangle of 3 positions that pinch flexing just goes around, like a trihexaflexagon. In the drawing each piece is one dot, and each line is a V-flex between two pieces.</p>
+    <div class="stats" aria-live="polite">
+      <span>Positions <b id="g-pos">…</b></span>
+      <span>Pinch links <b id="g-pl">…</b></span>
+      <span>V-flex links <b id="g-vl">…</b></span>
+      <span>Pinch-only pieces <b id="g-pieces">…</b></span>
+      <span>Farthest apart <b id="g-diam">…</b></span>
+    </div>
+    <div class="glegend" aria-hidden="true">
+      <span><span class="legend-dot" style="background:var(--accent);width:12px;height:12px"></span>Classic Tuckerman graph, 9 positions</span>
+      <span><span class="legend-dot" style="background:var(--muted);width:6px;height:6px"></span>Pinch triangle, 3 positions</span>
+      <span>Line: a V-flex between them</span>
+    </div>
+    <div class="graphscroll" id="g-wrap">
+      <svg id="vgraph" viewBox="0 0 1000 560" role="img" aria-label="Graph of the pinch-only pieces of the hexahexaflexagon, arranged in columns by how many V-flexes they are from the starting fold"><text class="tick" x="24" y="40" style="text-anchor:start">Working out every position…</text></svg>
+      <div class="gtip" id="g-tip" hidden></div>
+    </div>
+    <p class="muted" style="font-size:0.85rem">Columns count V-flexes from the starting fold. Point at a column to see what it holds and where its V-flexes lead.</p>
+    <div class="gcols">
+      <div>
+        <h3>How many ways out</h3>
+        <p>Most positions allow only the two pinch flexes of their triangle. A V-flex needs three thick enough sectors, so it only becomes possible in some positions, and in just 3 of the 9 positions of each classic copy.</p>
+      </div>
+      <div>
+        <table class="gtable" aria-label="Positions by how many other positions are one flex away">
+          <thead><tr><th>One flex away</th><th>Pinch</th><th>V-flex</th><th class="n">Positions</th></tr></thead>
+          <tbody id="g-degs"><tr><td colspan="4" class="muted">Working it out…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="about" aria-label="How it works">
+    <div>
+      <h3>What a pinch flex does</h3>
+      <p>The three marked corners rise and meet above the middle, folding the hexagon into a three-bladed star. The blades then split open from the top and lie flat again. The corners you pinched are now the centre, and the old centre has become three of the outer corners.</p>
+    </div>
+    <div>
+      <h3>Why it sometimes won't open</h3>
+      <p>A blade can only split where its layers are not hinged together. If no such gap exists at the corners you chose, the paper refuses. Move one corner over and try again. The Tuckerman tour does this automatically: flex at the same place while it works, otherwise shift by one corner.</p>
+    </div>
+    <div>
+      <h3>What a V-flex does</h3>
+      <p>Two corners with one corner between them are lifted and pressed together, folding the triangles between them into a fin. The rest of the flexagon becomes a bowl, which is opened, slid into a tent and opened flat again around the joined corners. Choose V-flex and press the button to step through it in 3D; the steps follow the real pieces of paper, which move as rigid triangles except for one layer that has to slip past another. It needs the two sectors on either side of the first corner, and one more, to hold at least two leaves each, so the trihexaflexagon can never do it.</p>
+    </div>
+    <div>
+      <h3>Mixed faces</h3>
+      <p>After a V-flex a side can show triangles from several faces, and the pictures on them can turn. With pinch flexes alone the hexahexaflexagon has 9 arrangements, counting each only once however it is rotated or turned over. Pinch and V-flexes together reach 3,420. The simulation finds exactly that number, as 41,040 states (3,420 times 6 rotations and 2 sides), matching Iacob, McLean and Wang (2012).</p>
+    </div>
+    <div>
+      <h3>How the model is built</h3>
+      <p>The trihexaflexagon is a ring of 9 triangles, the hexahexaflexagon a ring of 18. The simulation stores where each paper corner sits and the stacking order in each of the six sectors, then splits and reopens the stacks for every flex. The V-flex follows Scott Sherman's definition of it in pat notation, which says how each stack splits and where the pieces go. As a check, every state reached by pinch flexes alone shows whole faces, never a mix, and in the hexahexaflexagon faces 1 to 3 pair with four other faces while 4 to 6 pair with only two.</p>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+"use strict";
+
+/* ---------- Flexagon engine: a ring of n paper triangles ---------- */
+function Engine(n) {
+  var corners = function (i) { return [i % n, (i + 1) % n, (i + 2) % n]; };
+  var pt = function (p) { return p === "C" ? [0, 0] : [Math.cos(p * Math.PI / 3), Math.sin(p * Math.PI / 3)]; };
+  function ccw(a, b, c) { a = pt(a); b = pt(b); c = pt(c); return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) > 0; }
+  function frontUp(st, i) { var c = corners(i); return ccw(st.pos[c[0]], st.pos[c[1]], st.pos[c[2]]) === (i % 2 === 1); }
+  function sectorOf(pos, i) {
+    var v = corners(i).map(function (p) { return pos[p]; });
+    if (v.filter(function (x) { return x === "C"; }).length !== 1) return -1;
+    var o = v.filter(function (x) { return x !== "C"; }).sort(function (a, b) { return a - b; });
+    if (o[0] === 0 && o[1] === 5) return 5;
+    return o[1] - o[0] === 1 ? o[0] : -1;
+  }
+  function layerOK(st) {
+    var where = {};
+    st.stacks.forEach(function (s, k) { s.forEach(function (l, d) { where[l] = { k: k, d: d }; }); });
+    var byE = {};
+    for (var i = 0; i < n; i++) {
+      var j = (i + 1) % n;
+      var e = [String(st.pos[(i + 1) % n]), String(st.pos[(i + 2) % n])].sort().join("-");
+      (byE[e] = byE[e] || []).push([where[i], where[j]]);
+    }
+    var ints = function (h) { var m = {}; h.forEach(function (w) { (m[w.k] = m[w.k] || []).push(w.d); }); for (var k in m) m[k].sort(function (p, q) { return p - q; }); return m; };
+    for (var key in byE) {
+      var hs = byE[key];
+      for (var x = 0; x < hs.length; x++) for (var y = x + 1; y < hs.length; y++) {
+        var ia = ints(hs[x]), ib = ints(hs[y]);
+        for (var k in ia) {
+          if (!(k in ib)) continue;
+          var a = ia[k], b = ib[k];
+          if (a.length === 2 && b.length === 2) { if ((a[0] < b[0] && b[0] < a[1] && a[1] < b[1]) || (b[0] < a[0] && a[0] < b[1] && b[1] < a[1])) return false; }
+          else if (a.length === 2) { if (a[0] < b[0] && b[0] < a[1]) return false; }
+          else if (b.length === 2) { if (b[0] < a[0] && a[0] < b[1]) return false; }
+        }
+        var ka = Object.keys(ia), kb = Object.keys(ib);
+        if (ka.length === 2 && kb.length === 2 && ka.every(function (q) { return q in ib; })) {
+          if ((ia[ka[0]][0] < ib[ka[0]][0]) !== (ia[ka[1]][0] < ib[ka[1]][0])) return false;
+        }
+      }
+    }
+    return true;
+  }
+  // Pinch flex at the even corners V0, V2, V4. Returns the new state or null.
+  function flex(st) {
+    var fins = [0, 1, 2].map(function (k) { return st.stacks[2 * k].slice().reverse().concat(st.stacks[2 * k + 1]); });
+    var found = null;
+    (function rec(k, ps) {
+      if (found) return;
+      if (k === 3) { found = tryFlex(st, fins, ps); return; }
+      for (var p = 0; p < fins[k].length - 1 && !found; p++) rec(k + 1, ps.concat(p));
+    })(0, []);
+    return found;
+  }
+  function tryFlex(st, fins, ps) {
+    var pos = new Array(n), stacks = [];
+    for (var k = 0; k < 3; k++) {
+      var L = fins[k], A = L.slice(0, ps[k] + 1), B = L.slice(ps[k] + 1);
+      stacks[2 * k] = A.slice();
+      stacks[2 * k + 1] = B.slice().reverse();
+      var halves = [A, B];
+      for (var h = 0; h < 2; h++) for (var li = 0; li < halves[h].length; li++) {
+        var c = corners(halves[h][li]);
+        for (var ci = 0; ci < 3; ci++) {
+          var P = c[ci], o = st.pos[P], nn;
+          if (o === "C") nn = h === 0 ? 2 * k : (2 * k + 2) % 6;
+          else if (o % 2 === 0) nn = "C";
+          else nn = o;
+          if (pos[P] !== undefined && pos[P] !== nn) return null;
+          pos[P] = nn;
+        }
+      }
+    }
+    for (var s = 0; s < 6; s++) for (var q = 0; q < stacks[s].length; q++) if (sectorOf(pos, stacks[s][q]) !== s) return null;
+    var ns = { pos: pos, stacks: stacks };
+    return layerOK(ns) ? ns : null;
+  }
+  // Flexes written in Scott Sherman's pat notation (Explorable Flexagons, "New Flexes" and "Flex Compendium").
+  // Pat j of a pattern is sector (off - j) mod 6, and in a pair [x, y] the leaves of y lie on top of x.
+  // With these conventions the pinch flex in that notation reproduces flex() on every reachable state.
+  var V_FLEX = { inp: [1, [2, 3], [4, 5], 6, 7, [8, 9]], out: [[3, -1], -2, -5, [-6, 4], [9, -7], -8] };
+  // Every way to place the corners, given each leaf's sector and which side faces up.
+  function solvePos(stacks, up) {
+    var sec = [], out = [], pos = new Array(n);
+    stacks.forEach(function (s, k) { s.forEach(function (l) { sec[l] = k; }); });
+    (function rec(i) {
+      if (i === n) { out.push(pos.slice()); return; }
+      var s = sec[i], s1 = (s + 1) % 6, c = corners(i);
+      var perms = up[i] === (i % 2 === 1) ? [["C", s, s1], [s, s1, "C"], [s1, "C", s]] : [["C", s1, s], [s1, s, "C"], [s, "C", s1]];
+      for (var q = 0; q < 3; q++) {
+        var set = [], ok = true;
+        for (var ci = 0; ci < 3 && ok; ci++) {
+          if (pos[c[ci]] === undefined) { pos[c[ci]] = perms[q][ci]; set.push(c[ci]); }
+          else if (pos[c[ci]] !== perms[q][ci]) ok = false;
+        }
+        if (ok) rec(i + 1);
+        set.forEach(function (P) { pos[P] = undefined; });
+      }
+    })(0);
+    return out;
+  }
+  // Apply a flex given as before/after pats (one level of nesting). Returns the new state or null.
+  // If out is given, out.pieces receives the leaves (top to bottom, before the flex) of each pattern variable.
+  function patFlex(st, spec, off, out) {
+    var sOf = function (j) { return (off - j + 6) % 6; };
+    var up0 = [], split = [], found = null;
+    for (var i = 0; i < n; i++) up0[i] = frontUp(st, i);
+    for (var j = 0; j < 6; j++) if (Array.isArray(spec.inp[j])) { if (st.stacks[sOf(j)].length < 2) return null; split.push(j); }
+    (function rec(k, cuts) {
+      if (found) return;
+      if (k === split.length) { found = build(cuts); return; }
+      for (var p = 1; p < st.stacks[sOf(split[k])].length && !found; p++) { cuts[split[k]] = p; rec(k + 1, cuts); }
+    })(0, {});
+    return found;
+    function build(cuts) {
+      var piece = {}, up = up0.slice(), stacks = [];
+      for (var j = 0; j < 6; j++) {
+        var s = st.stacks[sOf(j)], pat = spec.inp[j];
+        if (!Array.isArray(pat)) { piece[pat] = s.slice(); continue; }
+        piece[pat[1]] = s.slice(0, cuts[j]);
+        piece[pat[0]] = s.slice(cuts[j]);
+      }
+      var get = function (v) {
+        var L = piece[Math.abs(v)].slice();
+        if (v < 0) { L.reverse(); L.forEach(function (l) { up[l] = !up0[l]; }); }
+        return L;
+      };
+      for (var j = 0; j < 6; j++) {
+        var pat = spec.out[j];
+        stacks[sOf(j)] = Array.isArray(pat) ? get(pat[1]).concat(get(pat[0])) : get(pat);
+      }
+      var all = solvePos(stacks, up);
+      for (var q = 0; q < all.length; q++) {
+        var ns = { pos: all[q], stacks: stacks }, ok = true;
+        for (var s = 0; s < 6 && ok; s++) for (var m = 0; m < stacks[s].length; m++) if (sectorOf(ns.pos, stacks[s][m]) !== s) { ok = false; break; }
+        if (ok && layerOK(ns)) { if (out) out.pieces = piece; return ns; }
+      }
+      return null;
+    }
+  }
+  // V-flex where the corners V_v and V_v+2 fold back together (the sectors either side of V_v, and sector v+2, need two leaves or more).
+  function vflex(st, v, out) { return patFlex(st, V_FLEX, (v + 1) % 6, out); }
+  function rot(st) {
+    var stacks = [];
+    for (var k = 0; k < 6; k++) stacks[(k + 1) % 6] = st.stacks[k].slice();
+    return { pos: st.pos.map(function (x) { return x === "C" ? "C" : (x + 1) % 6; }), stacks: stacks };
+  }
+  function flip(st) {
+    var stacks = [];
+    for (var k = 0; k < 6; k++) stacks[5 - k] = st.stacks[k].slice().reverse();
+    return { pos: st.pos.map(function (x) { return x === "C" ? "C" : (6 - x) % 6; }), stacks: stacks };
+  }
+  function rotN(st, m) { for (var i = 0; i < m; i++) st = rot(st); return st; }
+  // parity 0: pinch V0,V2,V4. parity 1: pinch V1,V3,V5.
+  function flexAt(st, par) { if (!par) return flex(st); var f = flex(rotN(st, 5)); return f ? rot(f) : null; }
+  function topSide(st, k) { var l = st.stacks[k][0]; return { leaf: l, side: l + (frontUp(st, l) ? "F" : "B") }; }
+  function botSide(st, k) { var s = st.stacks[k], l = s[s.length - 1]; return { leaf: l, side: l + (frontUp(st, l) ? "B" : "F") }; }
+  function centerP(st, leaf) { return corners(leaf).filter(function (p) { return st.pos[p] === "C"; })[0]; }
+  return { n: n, corners: corners, flex: flex, flexAt: flexAt, vflex: vflex, patFlex: patFlex, frontUp: frontUp, rot: rot, flip: flip, rotN: rotN,
+    topSide: topSide, botSide: botSide, centerP: centerP, key: function (st) { return JSON.stringify(st); } };
+}
+
+/* ---------- The two flexagons, as folded starting states ---------- */
+var MODELS = {
+  tri: {
+    name: "Trihexaflexagon", n: 9,
+    init: { pos: [0, 1, "C", 2, 3, "C", 4, 5, "C"], stacks: [[0, 8], [1], [3, 2], [4], [6, 5], [7]] }
+  },
+  hexa: {
+    name: "Hexahexaflexagon", n: 18,
+    init: { pos: [1, 0, "C", 1, 2, "C", 3, 2, "C", 3, 4, "C", 5, 4, "C", 5, 0, "C"],
+            stacks: [[0, 1, 16, 17], [3, 2], [6, 7, 4, 5], [9, 8], [12, 13, 10, 11], [15, 14]] }
+  }
+};
+var FACE_COLORS = ["#cf5236", "#2a8784", "#dea12f", "#4a5cbf", "#b4467b", "#679538"];
+
+// Explore every reachable state once, to number the faces and fix each face's reference picture.
+function analyze(model) {
+  var E = Engine(model.n);
+  model.E = E;
+  var seen = {}, q = [model.init], order = [];
+  seen[E.key(model.init)] = true;
+  var ref = {}, parent = {};
+  var find = function (x) { while (parent[x] !== undefined && parent[x] !== x) x = parent[x]; return x; };
+  var unite = function (a, b) { var ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
+  var pairs = [];
+  while (q.length) {
+    var s = q.shift();
+    order.push(s);
+    var tops = [], bots = [];
+    for (var k = 0; k < 6; k++) {
+      var t = E.topSide(s, k), b = E.botSide(s, k);
+      tops.push(t.side); bots.push(b.side);
+      if (!(t.side in ref)) ref[t.side] = E.centerP(s, t.leaf);
+      if (!(b.side in ref)) ref[b.side] = E.centerP(s, b.leaf);
+    }
+    tops.forEach(function (x) { unite(x, tops[0]); });
+    bots.forEach(function (x) { unite(x, bots[0]); });
+    pairs.push([tops[0], bots[0]]);
+    var nb = [E.flexAt(s, 0), E.flexAt(s, 1), E.rot(s), E.flip(s)];
+    nb.forEach(function (x) { if (x && !seen[E.key(x)]) { seen[E.key(x)] = true; q.push(x); } });
+  }
+  // Classes in order of first appearance.
+  var roots = [];
+  order.forEach(function (s) {
+    [E.topSide(s, 0).side, E.botSide(s, 0).side].forEach(function (x) { var r = find(x); if (roots.indexOf(r) < 0) roots.push(r); });
+  });
+  var adj = roots.map(function () { return {}; });
+  pairs.forEach(function (p) { var a = roots.indexOf(find(p[0])), b = roots.indexOf(find(p[1])); adj[a][b] = adj[b][a] = true; });
+  var deg = adj.map(function (o) { return Object.keys(o).length; });
+  // Number faces: the more sociable faces first, keeping first-appearance order.
+  var idx = roots.map(function (_, i) { return i; });
+  idx.sort(function (a, b) { return (deg[b] - deg[a]) || (a - b); });
+  var faceOfRoot = {};
+  idx.forEach(function (ri, num) { faceOfRoot[roots[ri]] = num + 1; });
+  var faceOf = {};
+  for (var leaf = 0; leaf < model.n; leaf++) ["F", "B"].forEach(function (c) { faceOf[leaf + c] = faceOfRoot[find(leaf + c)]; });
+  var edges = {};
+  pairs.forEach(function (p) { var a = faceOf[p[0]], b = faceOf[p[1]]; edges[Math.min(a, b) + "-" + Math.max(a, b)] = [Math.min(a, b), Math.max(a, b)]; });
+  var degree = {};
+  Object.values(edges).forEach(function (e) { degree[e[0]] = (degree[e[0]] || 0) + 1; degree[e[1]] = (degree[e[1]] || 0) + 1; });
+  model.faceOf = faceOf;
+  model.ref = ref;
+  model.faces = roots.length;
+  model.edges = Object.values(edges);
+  model.degree = degree;
+  model.states = order.length;
+  model.hasV = order.some(function (s) { for (var v = 0; v < 6; v++) if (E.vflex(s, v)) return true; return false; });
+}
+analyze(MODELS.tri);
+analyze(MODELS.hexa);
+
+/* ---------- Every position under pinch and V-flexes, as a graph ---------- */
+// Positions count once however they are rotated or turned over: each is filed under the smallest key of its 12 copies.
+// The work is split into short chunks so the page stays responsive; done(reps, pinch, vflex) gets neighbour sets by position.
+function positionGraph(model, done) {
+  var E = model.E;
+  var canon = function (st) {
+    var best = null, bs = null;
+    for (var f = 0; f < 2; f++) { for (var r = 0; r < 6; r++) { var k = E.key(st); if (best === null || k < best) { best = k; bs = st; } st = E.rot(st); } st = E.flip(st); }
+    return { key: best, st: bs };
+  };
+  var c0 = canon(model.init), id = {}, reps = [c0.st], pinch = [], vflex = [], i = 0;
+  id[c0.key] = 0;
+  var link = function (sets, a, b) { if (a === b) return; (sets[a] = sets[a] || {})[b] = true; (sets[b] = sets[b] || {})[a] = true; };
+  (function chunk() {
+    var t = performance.now();
+    while (i < reps.length && performance.now() - t < 25) {
+      // Flexing from underneath is a flex of the turned-over copy, so try both sides.
+      [reps[i], E.flip(reps[i])].forEach(function (s) {
+        var moves = [[pinch, E.flexAt(s, 0)], [pinch, E.flexAt(s, 1)]];
+        for (var v = 0; v < 6; v++) moves.push([vflex, E.vflex(s, v)]);
+        moves.forEach(function (m) {
+          if (!m[1]) return;
+          var c = canon(m[1]);
+          if (!(c.key in id)) { id[c.key] = reps.length; reps.push(c.st); }
+          link(m[0], i, id[c.key]);
+        });
+      });
+      i++;
+    }
+    if (i < reps.length) setTimeout(chunk, 0);
+    else done(reps.length, pinch.map(Object.keys), vflex.map(Object.keys));
+  })();
+}
+
+function drawPositionGraph(N, pinchS, vflexS) {
+  var el = function (id) { return document.getElementById(id); };
+  var nb = function (sets, i) { return (sets[i] || []).map(Number); };
+  var all = [], pl = 0, vl = 0, degs = {};
+  for (var i = 0; i < N; i++) {
+    var p = nb(pinchS, i), v = nb(vflexS, i), u = {};
+    p.concat(v).forEach(function (j) { u[j] = true; });
+    all.push(Object.keys(u).map(Number));
+    pl += p.length; vl += v.length;
+    var dk = p.length + "|" + v.length; degs[dk] = (degs[dk] || 0) + 1;
+  }
+  // Farthest apart: the largest number of flexes between two positions.
+  var diam = 0;
+  for (var s = 0; s < N; s++) {
+    var d = new Int16Array(N).fill(-1), q = [s]; d[s] = 0;
+    for (var h = 0; h < q.length; h++) all[q[h]].forEach(function (j) { if (d[j] < 0) { d[j] = d[q[h]] + 1; q.push(j); } });
+    diam = Math.max(diam, d[q[q.length - 1]]);
+  }
+  // Pieces that pinch flexes alone keep you inside.
+  var piece = new Array(N).fill(-1), pieces = [];
+  for (var a = 0; a < N; a++) if (piece[a] < 0) {
+    var g = [a]; piece[a] = pieces.length;
+    for (var k = 0; k < g.length; k++) nb(pinchS, g[k]).forEach(function (j) { if (piece[j] < 0) { piece[j] = pieces.length; g.push(j); } });
+    pieces.push(g);
+  }
+  var M = pieces.length, links = pieces.map(function () { return {}; });
+  for (var b = 0; b < N; b++) nb(vflexS, b).forEach(function (j) { if (piece[j] !== piece[b]) links[piece[b]][piece[j]] = true; });
+  links = links.map(function (o) { return Object.keys(o).map(Number); });
+  var start = piece[0], col = new Array(M).fill(-1), q2 = [start]; col[start] = 0;
+  for (var h2 = 0; h2 < q2.length; h2++) links[q2[h2]].forEach(function (j) { if (col[j] < 0) { col[j] = col[q2[h2]] + 1; q2.push(j); } });
+  var cols = [];
+  for (var m = 0; m < M; m++) (cols[col[m]] = cols[col[m]] || []).push(m);
+  // Order each column by the average height of its neighbours in other columns, to untangle the lines a little.
+  var y = new Float64Array(M);
+  cols.forEach(function (c) { c.forEach(function (m, r) { y[m] = (r + 0.5) / c.length; }); });
+  for (var sweep = 0; sweep < 30; sweep++) cols.forEach(function (c, ci) {
+    var bc = {};
+    c.forEach(function (m) { var t = 0, n = 0; links[m].forEach(function (j) { if (col[j] !== ci) { t += y[j]; n++; } }); bc[m] = n ? t / n : y[m]; });
+    c.sort(function (p, r) { return bc[p] - bc[r]; });
+    c.forEach(function (m, r) { y[m] = (r + 0.5) / c.length; });
+  });
+
+  el("g-pos").textContent = N.toLocaleString("en");
+  el("g-pl").textContent = (pl / 2).toLocaleString("en");
+  el("g-vl").textContent = (vl / 2).toLocaleString("en");
+  el("g-pieces").textContent = M.toLocaleString("en");
+  el("g-diam").textContent = diam + " flexes";
+  el("g-degs").innerHTML = Object.keys(degs).map(function (k) { var pv = k.split("|").map(Number); return [pv[0] + pv[1], pv[0], pv[1], degs[k]]; })
+    .sort(function (p, r) { return p[0] - r[0]; })
+    .map(function (r) { return "<tr><td>" + r[0] + "</td><td>" + r[1] + "</td><td>" + r[2] + "</td><td class=\"n\">" + r[3].toLocaleString("en") + "</td></tr>"; }).join("");
+
+  var W = 1000, top = 34, H = 470, x0 = 50, dx = (W - 2 * x0) / Math.max(1, cols.length - 1);
+  var X = function (m) { return x0 + col[m] * dx; }, Y = function (m) { return top + y[m] * H; };
+  var line = function (a, b) {
+    if (col[a] !== col[b]) return "M" + X(a).toFixed(1) + " " + Y(a).toFixed(1) + "L" + X(b).toFixed(1) + " " + Y(b).toFixed(1);
+    // Links within one column bow out to the right so they don't hide in it.
+    var bow = 10 + 0.12 * Math.abs(Y(b) - Y(a));
+    return "M" + X(a).toFixed(1) + " " + Y(a).toFixed(1) + "Q" + (X(a) + bow).toFixed(1) + " " + ((Y(a) + Y(b)) / 2).toFixed(1) + " " + X(b).toFixed(1) + " " + Y(b).toFixed(1);
+  };
+  var all2 = "", byCol = cols.map(function () { return ""; });
+  links.forEach(function (ls, a) { ls.forEach(function (b) { if (a < b) { var d = line(a, b); all2 += d; byCol[col[a]] += d; if (col[b] !== col[a]) byCol[col[b]] += d; } }); });
+  var svg = "<path class=\"gl\" d=\"" + all2 + "\"/><path class=\"gl hl\" id=\"g-hl\" d=\"\"/>";
+  cols.forEach(function (c, ci) { svg += "<rect class=\"col\" data-c=\"" + ci + "\" x=\"" + (X(c[0]) - dx / 2).toFixed(1) + "\" y=\"" + (top - 14) + "\" width=\"" + dx.toFixed(1) + "\" height=\"" + (H + 28) + "\" rx=\"4\"/>"; });
+  var hubs = [];
+  for (var m2 = 0; m2 < M; m2++) {
+    if (pieces[m2].length > 3) { hubs.push(m2); continue; }
+    svg += "<circle class=\"tri\" cx=\"" + X(m2).toFixed(1) + "\" cy=\"" + Y(m2).toFixed(1) + "\" r=\"1.9\"/>";
+  }
+  hubs.forEach(function (m) {
+    svg += "<circle class=\"hub\" cx=\"" + X(m).toFixed(1) + "\" cy=\"" + Y(m).toFixed(1) + "\" r=\"8\"/>";
+    var name = m === start ? "As folded" : "Second classic copy";
+    svg += "<text class=\"hubname\" x=\"" + X(m).toFixed(1) + "\" y=\"" + (Y(m) - 14).toFixed(1) + "\" text-anchor=\"" + (m === start ? "start" : "middle") + "\">" + name + "</text>";
+  });
+  cols.forEach(function (c, ci) { svg += "<text class=\"tick\" x=\"" + X(c[0]).toFixed(1) + "\" y=\"" + (top + H + 34) + "\">" + ci + "</text>"; });
+  svg += "<text class=\"tick\" x=\"" + (W / 2) + "\" y=\"" + (top + H + 54) + "\">V-flexes from the starting fold</text>";
+  var box = el("vgraph");
+  box.innerHTML = svg;
+
+  var tip = el("g-tip"), wrap = el("g-wrap"), hl = el("g-hl"), on = null;
+  var show = function (rect, e) {
+    var ci = +rect.getAttribute("data-c"), c = cols[ci];
+    var pos = c.reduce(function (t, m) { return t + pieces[m].length; }, 0);
+    var big = c.filter(function (m) { return pieces[m].length > 3; }).length;
+    var out = {}; c.forEach(function (m) { links[m].forEach(function (j) { out[col[j]] = (out[col[j]] || 0) + 1; }); });
+    var dest = Object.keys(out).map(Number).sort(function (p, r) { return p - r; }).map(function (k) { return k === ci ? "this column" : "column " + k; });
+    if (on) on.classList.remove("on");
+    on = rect; rect.classList.add("on");
+    hl.setAttribute("d", byCol[ci]);
+    tip.innerHTML = "<b>" + ci + " V-flex" + (ci === 1 ? "" : "es") + " from the start</b><br>" +
+      c.length + (c.length === 1 ? " piece" : " pieces") + (big ? " (" + big + " classic)" : "") + ", " + pos.toLocaleString("en") + " positions<br>" +
+      "<span class=\"muted\">V-flexes lead to " + dest.join(", ") + "</span>";
+    tip.hidden = false;
+    var r = wrap.getBoundingClientRect(), tx = e.clientX - r.left + wrap.scrollLeft + 14, ty = e.clientY - r.top + 14;
+    if (tx + tip.offsetWidth > wrap.scrollLeft + r.width - 8) tx -= tip.offsetWidth + 28;
+    if (ty + tip.offsetHeight > r.height - 8) ty = r.height - tip.offsetHeight - 8;
+    tip.style.left = tx + "px"; tip.style.top = ty + "px";
+  };
+  box.addEventListener("pointermove", function (e) { if (e.target.classList.contains("col")) show(e.target, e); });
+  box.addEventListener("pointerleave", function () { if (on) on.classList.remove("on"); on = null; hl.setAttribute("d", ""); tip.hidden = true; });
+}
+
+(function () {
+  var go = function () { positionGraph(MODELS.hexa, drawPositionGraph); };
+  var target = document.getElementById("vgraph");
+  if (!("IntersectionObserver" in window)) return go();
+  var io = new IntersectionObserver(function (es) { if (es.some(function (e) { return e.isIntersecting; })) { io.disconnect(); go(); } }, { rootMargin: "600px" });
+  io.observe(target);
+})();
+
+/* ---------- V-flex motion: nine rigid pieces on nine hinge points ---------- */
+// The V-flex moves the pieces a..i (1..9) of its pattern as rigid triangles. Piece k spans the hinge points
+// V_TRI[k] (X1..X9). V_BEFORE and V_AFTER give where each point lies, as a corner counted from v, or the centre.
+var V_TRI = { 1: [3, 1, 4], 2: [2, 9, 1], 3: [2, 3, 1], 4: [6, 8, 2], 5: [8, 2, 9], 6: [7, 6, 8], 7: [6, 5, 7], 8: [4, 3, 5], 9: [5, 4, 6] };
+var V_BEFORE = [null, 1, 0, "C", 2, 3, "C", 4, 5, "C"];
+var V_AFTER = [null, 1, "C", 2, "C", 3, 4, "C", 5, 0];
+function vAt(x, v) { return x === "C" ? "C" : (x + v) % 6; }
+// Which corner of its piece each paper corner sits at, and the faces each piece shows. Null if the flex isn't possible.
+function vRig(model, st, v) {
+  var E = model.E, out = {}, next = E.vflex(st, v, out);
+  if (!next) return null;
+  var pieces = [];
+  for (var k = 1; k <= 9; k++) {
+    var leaves = out.pieces[k], vtx = {};
+    for (var li = 0; li < leaves.length; li++) {
+      var cs = E.corners(leaves[li]);
+      for (var ci = 0; ci < 3; ci++) {
+        var P = cs[ci], m = -1;
+        for (var q = 0; q < 3; q++) if (vAt(V_BEFORE[V_TRI[k][q]], v) === st.pos[P]) m = q;
+        if (m < 0 || vAt(V_AFTER[V_TRI[k][m]], v) !== next.pos[P]) return null;
+        vtx[P] = m;
+      }
+    }
+    var top = leaves[0], bot = leaves[leaves.length - 1];
+    var up = top + (E.frontUp(st, top) ? "F" : "B"), down = bot + (E.frontUp(st, bot) ? "B" : "F");
+    pieces.push({ k: k, leaves: leaves, up: up, down: down, upRef: vtx[model.ref[up]], downRef: vtx[model.ref[down]] });
+  }
+  return { next: next, pieces: pieces };
+}
+
+// The motion itself, for v = 0, as frames of the nine hinge points. Each step drives a few distances between points
+// while every piece edge stays length 1, then the result is turned to land exactly on the flat state after the flex.
+var V_STEPS = [
+  { title: "Bring two corners together", text: "Hold the flexagon face up by the two marked corners. Lift both corners towards you and press them together. The two triangles between them fold face to face into a small fin, and the rest sinks into a four-sided bowl." },
+  { title: "Open the centre", text: "Keep the joined corners pinched. Open the bottom of the bowl: the layers at the centre come apart and the bowl tips over on one side, showing a face that was hidden inside." },
+  { title: "Slide the sides", text: "Slide the two halves along each other until the bowl collapses into a tent with the newly found face outside." },
+  { title: "Open it flat", text: "Open the tent out flat around the pinched corners. The point where they met becomes the new centre of the hexagon. As it starts to open, layer d has to slip past e and f, so ease the paper; this is where a real V-flex bends the leaves a little." }
+];
+var vPath = (function () {
+  var R3 = Math.sqrt(3), R2 = Math.SQRT2;
+  var pt = function (x) { return x === "C" ? [0, 0, 0] : [Math.cos(x * Math.PI / 3), Math.sin(x * Math.PI / 3), 0]; };
+  var sub = function (a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; };
+  var X = V_BEFORE.map(function (x) { return x === null ? null : pt(x); });
+  var edges = [], seen = {};
+  for (var k = 1; k <= 9; k++) for (var a = 0; a < 3; a++) {
+    var i = V_TRI[k][a], j = V_TRI[k][(a + 1) % 3], key = Math.min(i, j) + "-" + Math.max(i, j);
+    if (!seen[key]) { seen[key] = 1; edges.push([i, j, 1, 1]); }
+  }
+  // Each phase: points held together, distances driven from one value to another, and a small push
+  // at the start that picks which way the paper buckles.
+  var phases = [
+    // X2 and X4 (corners v and v+2) fold towards the viewer and meet; the centre stays closed.
+    { n: 70, glue: [[3, 6], [6, 9]], aim: [[2, 4, R3, 0], [5, 8, R3, R2], [7, 2, R3, R2]],
+      kick: function () { X[2][2] += 0.03; X[4][2] += 0.03; X[3][2] -= 0.03; X[6][2] -= 0.03; X[9][2] -= 0.03; } },
+    // The centre opens: X3 leaves X6 and X9.
+    { n: 60, glue: [[2, 4], [6, 9]], aim: [[3, 6, 0, R2]],
+      kick: function () { var c = [1, 5, 7, 8].reduce(function (m, i) { return [m[0] + X[i][0] / 4, m[1] + X[i][1] / 4, m[2] + X[i][2] / 4]; }, [0, 0, 0]); for (var q = 0; q < 3; q++) X[3][q] -= (c[q] - X[3][q]) * 0.05; } },
+    // Slide: X7 comes round to the corners that met.
+    { n: 60, glue: [[2, 4], [6, 9]], aim: [[7, 2, R2, 0], [3, 6, R2, R2]] },
+    // Open flat around the new centre X2 = X4 = X7.
+    { n: 70, glue: [[2, 4], [4, 7]], aim: [[3, 6, 0, R3], [6, 9, 0, R3], [3, 9, 0, R3], [1, 8, R2, R3], [5, 8, R2, R3]],
+      kick: function () { var u = sub(X[5], X[8]); for (var q = 0; q < 3; q++) { X[6][q] -= u[q] * 0.01; X[9][q] += u[q] * 0.01; } } }
+  ];
+  function project(cons, iters) {
+    for (var it = 0; it < iters; it++) for (var c = 0; c < cons.length; c++) {
+      var A = X[cons[c][0]], B = X[cons[c][1]], d = sub(B, A), L = Math.hypot(d[0], d[1], d[2]);
+      if (L < 1e-12) continue;
+      var f = (L - cons[c][2]) / L * 0.5 * cons[c][3];
+      for (var q = 0; q < 3; q++) { A[q] += d[q] * f; B[q] -= d[q] * f; }
+    }
+  }
+  var snap = function () { return X.map(function (p) { return p && p.slice(); }); };
+  var frames = [snap()], marks = [0];
+  var dist = function (i, j) { var d = sub(X[i], X[j]); return Math.hypot(d[0], d[1], d[2]); };
+  phases.forEach(function (ph) {
+    ph.kick && ph.kick();
+    // Every target starts from the distance the shape has now, so no phase begins with a jump;
+    // points glued in this phase are drawn together over the phase rather than snapped.
+    var glue = ph.glue.map(function (g) { return [g[0], g[1], dist(g[0], g[1])]; });
+    var aim = ph.aim.map(function (a) { return [a[0], a[1], dist(a[0], a[1]), a[3]]; });
+    for (var f = 1; f <= ph.n; f++) {
+      var s = 0.5 - 0.5 * Math.cos(Math.PI * f / ph.n), cons = edges.slice();
+      glue.forEach(function (g) { cons.push([g[0], g[1], g[2] * (1 - s), 1]); });
+      aim.forEach(function (a) { cons.push([a[0], a[1], a[2] + (a[3] - a[2]) * s, 0.35]); });
+      project(cons, 80);
+      frames.push(snap());
+    }
+    marks.push(frames.length - 1);
+  });
+  // Settle exactly onto the flat state after the flex.
+  var end = V_AFTER.map(function (x) { return x === null ? null : pt(x); }), from = snap();
+  for (var f = 1; f <= 12; f++) {
+    for (var i = 1; i <= 9; i++) for (var q = 0; q < 3; q++) X[i][q] = from[i][q] + (end[i][q] - from[i][q]) * f / 12;
+    frames.push(snap());
+  }
+  marks[marks.length - 1] = frames.length - 1;
+  // Layering: pieces lying on top of each other keep the order they had when they came together.
+  // offs[f][k] is the small shift that keeps piece k off the pieces it lies on.
+  var nrm = function (X, k) {
+    var t = V_TRI[k], a = sub(X[t[1]], X[t[0]]), b = sub(X[t[2]], X[t[0]]);
+    var c = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], L = Math.hypot(c[0], c[1], c[2]) || 1;
+    return [c[0] / L, c[1] / L, c[2] / L];
+  };
+  var cen = function (X, k) { var t = V_TRI[k]; return [0, 1, 2].map(function (q) { return (X[t[0]][q] + X[t[1]][q] + X[t[2]][q]) / 3; }); };
+  // Before the flex: c over b, e over d, i over h (in each pair [x, y] of the pattern, y is on top).
+  var sgn = {};
+  [[3, 2], [5, 4], [9, 8]].forEach(function (p) {
+    sgn[p[0] + "-" + p[1]] = Math.sign(nrm(frames[0], p[1])[2]);
+    sgn[p[1] + "-" + p[0]] = -Math.sign(nrm(frames[0], p[0])[2]);
+  });
+  var offs = frames.map(function (X, fi) {
+    var o = {};
+    for (var k = 1; k <= 9; k++) {
+      o[k] = [0, 0, 0];
+      for (var l = 1; l <= 9; l++) {
+        if (l === k) continue;
+        var key = k + "-" + l, nl = nrm(X, l), nk = nrm(X, k), d = sub(cen(X, k), cen(X, l)), h = d[0] * nl[0] + d[1] * nl[1] + d[2] * nl[2];
+        var across = Math.sqrt(Math.max(0, d[0] * d[0] + d[1] * d[1] + d[2] * d[2] - h * h));
+        if (across > 0.35) continue;
+        if (Math.abs(h) >= 0.03) { sgn[key] = Math.sign(h); continue; }
+        // Close and over each other: keep at least a 0.012 gap on the side k was last seen on.
+        var sg = sgn[key], need = sg ? 0.012 - sg * h : 0;
+        if (need > 0 && Math.abs(nk[0] * nl[0] + nk[1] * nl[1] + nk[2] * nl[2]) > 0.9) for (var q = 0; q < 3; q++) o[k][q] += 0.5 * need * sg * nl[q];
+      }
+    }
+    return o;
+  });
+  // The last frames show the stacks the flex actually makes: a over c, d over f, g over i.
+  var flat = offs.length - 13;
+  [[1, 3], [4, 6], [7, 9]].forEach(function (p) {
+    for (var f = flat; f < offs.length; f++) { offs[f][p[0]] = [0, 0, 0.012]; offs[f][p[1]] = [0, 0, -0.012]; }
+  });
+  return { frames: frames, marks: marks, offs: offs };
+})();
+// For tests.html, which checks the engine and the V-flex motion against physical constraints.
+window.__flexagonTest = { MODELS: MODELS, vPath: vPath, vRig: vRig, V_TRI: V_TRI, V_BEFORE: V_BEFORE, V_AFTER: V_AFTER, V_STEPS: V_STEPS };
+
+/* ---------- Page state ---------- */
+var model = MODELS.tri;
+var state = model.init;
+var parity = 0;
+var kind = "pinch";
+var vpos = 0;
+var flexCount = 0;
+var vCount = 0;
+var seenFaces = {};
+var anim = null;
+var autoOn = false;
+var autoTimer = null;
+var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+var SPEED = reduceMotion ? 0.35 : 1;
+
+var $ = function (id) { return document.getElementById(id); };
+var msgEl = $("msg");
+var msgTimer = null;
+function say(text, ms) {
+  msgEl.textContent = text;
+  msgEl.hidden = false;
+  clearTimeout(msgTimer);
+  msgTimer = setTimeout(function () { msgEl.hidden = true; }, ms || 2600);
+}
+
+/* ---------- Status panel, face map, template ---------- */
+// faces: the face in each of the six sectors. below: draw as seen after turning over.
+function hexChip(svg, faces, below) {
+  var c = function (j) { var a = j * Math.PI / 3; return Math.cos(a).toFixed(3) + "," + ((below ? 1 : -1) * Math.sin(a)).toFixed(3); };
+  var out = "";
+  for (var k = 0; k < 6; k++) out += '<polygon points="0,0 ' + c(k) + " " + c(k + 1) + '" fill="' + FACE_COLORS[faces[k] - 1] + '" stroke="' + FACE_COLORS[faces[k] - 1] + '" stroke-width="0.02"/>';
+  if (uniq(faces).length === 1) out += '<circle r="0.62" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="0.09"/>';
+  svg.innerHTML = out;
+}
+function uniq(a) { return a.filter(function (x, i) { return a.indexOf(x) === i; }).sort(function (p, q) { return p - q; }); }
+function listFaces(fs) { return fs.length === 1 ? String(fs[0]) : fs.slice(0, -1).join(", ") + " & " + fs[fs.length - 1]; }
+function updatePanel() {
+  var E = model.E, tops = [], bots = [];
+  for (var k = 0; k < 6; k++) { tops.push(model.faceOf[E.topSide(state, k).side]); bots.push(model.faceOf[E.botSide(state, k).side]); }
+  var tu = uniq(tops), bu = uniq(bots);
+  tu.concat(bu).forEach(function (f) { seenFaces[f] = true; });
+  $("f-top").textContent = tu.length === 1 ? "Face " + tu[0] : "Mixed";
+  $("f-bot").textContent = bu.length === 1 ? "Face " + bu[0] : "Mixed";
+  $("f-top").nextElementSibling.textContent = tu.length === 1 ? "on top" : "on top: faces " + listFaces(tu);
+  $("f-bot").nextElementSibling.textContent = bu.length === 1 ? "underneath" : "underneath: faces " + listFaces(bu);
+  hexChip($("chip-top"), tops);
+  hexChip($("chip-bot"), bots, true);
+  $("s-flex").textContent = String(flexCount);
+  $("s-v").textContent = String(vCount);
+  $("s-seen").textContent = Object.keys(seenFaces).length + " of " + model.faces;
+  var centred = true;
+  for (var k = 0; k < 6; k++) {
+    var t = E.topSide(state, k);
+    if (state.pos[model.ref[t.side]] !== "C") centred = false;
+  }
+  $("s-pic").textContent = centred ? "centred" : "rearranged";
+  drawFaceMap(tu, bu);
+}
+function faceMapLayout() {
+  var pos = {}, F = model.faces;
+  var inner = [], outer = [];
+  for (var f = 1; f <= F; f++) ((model.degree[f] || 0) > 2 ? inner : outer).push(f);
+  if (!inner.length) {
+    outer.forEach(function (f, i) { var a = -Math.PI / 2 + i * 2 * Math.PI / outer.length; pos[f] = [78 * Math.cos(a), 78 * Math.sin(a)]; });
+    return pos;
+  }
+  inner.forEach(function (f, i) { var a = -Math.PI / 2 + i * 2 * Math.PI / inner.length; pos[f] = [44 * Math.cos(a), 44 * Math.sin(a)]; });
+  outer.forEach(function (f) {
+    var nbr = model.edges.filter(function (e) { return e[0] === f || e[1] === f; }).map(function (e) { return e[0] === f ? e[1] : e[0]; });
+    var x = 0, y = 0;
+    nbr.forEach(function (g) { x += pos[g][0]; y += pos[g][1]; });
+    var a = Math.atan2(y, x);
+    pos[f] = [100 * Math.cos(a), 100 * Math.sin(a)];
+  });
+  return pos;
+}
+// tops, bots: the faces showing on each side (more than one after a V-flex).
+function drawFaceMap(tops, bots) {
+  var svg = $("facemap"), P = faceMapLayout(), out = "";
+  var whole = tops.length === 1 && bots.length === 1, top = tops[0], bot = bots[0];
+  model.edges.forEach(function (e) {
+    var on = whole && (e[0] === Math.min(top, bot) && e[1] === Math.max(top, bot));
+    out += '<line class="edge' + (on ? " on" : "") + '" x1="' + P[e[0]][0] + '" y1="' + P[e[0]][1] + '" x2="' + P[e[1]][0] + '" y2="' + P[e[1]][1] + '"/>';
+  });
+  for (var f = 1; f <= model.faces; f++) {
+    var onTop = tops.indexOf(f) >= 0, onBot = bots.indexOf(f) >= 0;
+    var op = seenFaces[f] ? 1 : 0.35;
+    out += '<g opacity="' + op + '"><circle cx="' + P[f][0] + '" cy="' + P[f][1] + '" r="17" fill="' + FACE_COLORS[f - 1] + '"/>';
+    if (onTop || onBot) out += '<circle class="ring" cx="' + P[f][0] + '" cy="' + P[f][1] + '" r="22"' + (onBot && !onTop ? ' stroke-dasharray="4 3"' : "") + "/>";
+    out += '<text x="' + P[f][0] + '" y="' + (P[f][1] + 6) + '" text-anchor="middle">' + f + "</text></g>";
+  }
+  svg.innerHTML = out;
+}
+function drawNet() {
+  var n = model.n, s = 54, h = s * Math.sqrt(3) / 2;
+  var P = function (m) { return [m * s / 2, m % 2 === 0 ? h : 0]; };
+  var W = (n + 2) * s / 2, rowGap = 34;
+  var svg = $("net");
+  var totalH = 2 * h + rowGap + 40;
+  svg.setAttribute("viewBox", "-8 -22 " + (W + 16) + " " + (totalH + 6));
+  svg.setAttribute("width", Math.round(W + 16));
+  var out = "<defs>";
+  var body = "";
+  ["F", "B"].forEach(function (side, row) {
+    var y0 = row * (h + rowGap + 20);
+    var map = function (p) { var x = row === 0 ? p[0] : W - p[0]; return [x, p[1] + y0]; };
+    body += '<text class="cap" x="0" y="' + (y0 - 8) + '">' + (row === 0 ? "FRONT" : "BACK (as seen when the strip is turned over)") + "</text>";
+    for (var i = 0; i <= n; i++) {
+      var tri = [P(i), P(i + 1), P(i + 2)].map(map);
+      var d = tri.map(function (q) { return q[0].toFixed(1) + "," + q[1].toFixed(1); }).join(" ");
+      if (i === n) {
+        body += '<polygon points="' + d + '" fill="none" stroke="var(--muted)" stroke-dasharray="3 3"/>';
+        var gx = (tri[0][0] + tri[1][0] + tri[2][0]) / 3, gy = (tri[0][1] + tri[1][1] + tri[2][1]) / 3;
+        body += '<text class="glue" x="' + gx.toFixed(1) + '" y="' + (gy + 3).toFixed(1) + '" text-anchor="middle">glue</text>';
+        continue;
+      }
+      var sid = i + side, face = model.faceOf[sid];
+      var cid = "c" + row + "_" + i;
+      out += '<clipPath id="' + cid + '"><polygon points="' + d + '"/></clipPath>';
+      var rp = model.ref[sid], rc = map(P([i, i + 1, i + 2].filter(function (m) { return m % n === rp; })[0]));
+      body += '<polygon points="' + d + '" fill="' + FACE_COLORS[face - 1] + '" stroke="var(--panel)" stroke-width="1.5"/>';
+      body += '<g clip-path="url(#' + cid + ')"><circle cx="' + rc[0].toFixed(1) + '" cy="' + rc[1].toFixed(1) + '" r="' + (0.62 * s).toFixed(1) + '" fill="none" stroke="rgba(255,255,255,0.65)" stroke-width="4"/>' +
+              '<circle cx="' + rc[0].toFixed(1) + '" cy="' + rc[1].toFixed(1) + '" r="' + (0.16 * s).toFixed(1) + '" fill="rgba(0,0,0,0.2)"/></g>';
+      var cx = (tri[0][0] + tri[1][0] + tri[2][0]) / 3, cy = (tri[0][1] + tri[1][1] + tri[2][1]) / 3;
+      body += '<text class="tri-num" x="' + cx.toFixed(1) + '" y="' + (cy + 5).toFixed(1) + '" text-anchor="middle">' + face + "</text>";
+    }
+  });
+  out += "</defs>";
+  svg.innerHTML = out + body;
+  $("net-desc").textContent = "The " + model.name.toLowerCase() + " is a strip of " + n + " triangles plus a glue tab. Every triangle has a front and a back; these are the face numbers each side carries, worked out by the same simulation. The rings show where to draw a picture so it looks whole the first time that face appears.";
+}
+
+/* ---------- 3D view ---------- */
+var THREE = window.THREE;
+var stage = $("stage");
+if (!THREE) {
+  $("loading").textContent = "The 3D view needs the three.js library, which did not load. Check your connection and reload the page.";
+  updatePanel(); drawNet();
+  return;
+}
+$("loading").remove();
+
+var renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+stage.insertBefore(renderer.domElement, stage.firstChild);
+var scene = new THREE.Scene();
+var camera = new THREE.PerspectiveCamera(32, 1, 0.1, 50);
+camera.up.set(0, 0, 1);
+scene.add(new THREE.AmbientLight(0xffffff, 0.58));
+var sun = new THREE.DirectionalLight(0xffffff, 0.5);
+scene.add(sun);
+var root = new THREE.Group();
+scene.add(root);
+var view = { yaw: -Math.PI / 2, pitch: 1.05, dist: 4.5 };
+
+function makeTexture(face) {
+  var c = document.createElement("canvas");
+  c.width = c.height = 256;
+  var g = c.getContext("2d");
+  g.fillStyle = FACE_COLORS[face - 1];
+  g.fillRect(0, 0, 256, 256);
+  var A = [128, 17];
+  g.strokeStyle = "rgba(255,255,255,0.62)";
+  g.lineWidth = 14;
+  g.beginPath(); g.arc(A[0], A[1], 159, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = 5;
+  g.beginPath(); g.arc(A[0], A[1], 104, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = "rgba(0,0,0,0.2)";
+  g.beginPath(); g.arc(A[0], A[1], 42, 0, Math.PI * 2); g.fill();
+  g.font = "600 46px Georgia, serif";
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.lineWidth = 4; g.strokeStyle = "rgba(0,0,0,0.3)";
+  g.strokeText(String(face), 128, 172);
+  g.fillStyle = "#ffffff";
+  g.fillText(String(face), 128, 172);
+  var t = new THREE.CanvasTexture(c);
+  t.anisotropy = 4;
+  return t;
+}
+var materials = FACE_COLORS.map(function (_, i) {
+  return new THREE.MeshLambertMaterial({ map: makeTexture(i + 1), side: THREE.FrontSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+});
+var UV = { A: [0.5, 0.933], B: [0, 0.067], C: [1, 0.067] };
+
+// Six sectors, each drawn as a top sheet and a bottom sheet plus an outline.
+var lineMat = new THREE.LineBasicMaterial({ color: 0x3b342a });
+var sectors = [];
+for (var k = 0; k < 6; k++) {
+  var mk = function () {
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(9), 3));
+    geo.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(6), 2));
+    var m = new THREE.Mesh(geo, materials[0]);
+    root.add(m);
+    return m;
+  };
+  var lg = new THREE.BufferGeometry();
+  lg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(18), 3));
+  var line = new THREE.LineSegments(lg, lineMat);
+  root.add(line);
+  sectors.push({ top: mk(), bot: mk(), line: line });
+}
+var markerGeo = new THREE.SphereGeometry(0.055, 16, 12);
+var markerOn = new THREE.MeshBasicMaterial({ color: 0xb5422a });
+var markerOff = new THREE.MeshBasicMaterial({ color: 0x8a8378, transparent: true, opacity: 0.55 });
+var markers = [];
+for (var j = 0; j < 6; j++) { var mm = new THREE.Mesh(markerGeo, markerOff); root.add(mm); markers.push(mm); }
+// The crease of the V-flex: the line from the centre to the corner between the two corners that meet.
+var axisLine = new THREE.Group();
+var dashGeo = new THREE.PlaneGeometry(0.1, 0.028);
+var dashMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
+for (var di = 0; di < 5; di++) { var dm = new THREE.Mesh(dashGeo, dashMat); dm.position.set(0.12 + di * 0.18, 0, 0.006); axisLine.add(dm); }
+axisLine.visible = false;
+root.add(axisLine);
+// The V-flex in motion: each of its nine pieces drawn as a top sheet, a bottom sheet and an outline.
+var vParts = [];
+for (var vk = 0; vk < 9; vk++) {
+  var vlg = new THREE.BufferGeometry();
+  vlg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(18), 3));
+  var vline = new THREE.LineSegments(vlg, lineMat);
+  root.add(vline);
+  vParts.push({ top: mk(), bot: mk(), line: vline });
+}
+// The two corners that meet, followed through the V-flex.
+var foldMarks = [0, 1].map(function () { var m = new THREE.Mesh(markerGeo, markerOn); m.scale.setScalar(1.3); m.visible = false; root.add(m); return m; });
+// Letters a to i on both sides of each piece, so the pieces can be matched with leaves of a paper flexagon.
+// d, e and f, the layers that have to slip past each other, are drawn in the accent colour.
+var V_NAMES = " abcdefghi", labelsOn = true;
+try { labelsOn = localStorage.getItem("vflexLabels") !== "off"; } catch (e) {}
+var labelMats = V_NAMES.split("").map(function (ch, k) {
+  if (!k) return null;
+  var c = document.createElement("canvas"); c.width = c.height = 64;
+  var g = c.getContext("2d");
+  g.fillStyle = k >= 4 && k <= 6 ? "#b5422a" : "#1f1d1a";
+  g.beginPath(); g.arc(32, 32, 28, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = "rgba(255,255,255,0.85)"; g.lineWidth = 3; g.stroke();
+  g.fillStyle = "#ffffff"; g.font = "600 36px Georgia, serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(ch, 32, 30);
+  return new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+});
+// Each letter is a small sticker lying flat on a face, so it sits on the paper instead of cutting into it.
+var labelGeo = new THREE.PlaneGeometry(0.21, 0.21);
+var vLabels = vParts.map(function () {
+  return [0, 1].map(function () { var m = new THREE.Mesh(labelGeo, labelMats[1]); m.visible = false; root.add(m); return m; });
+});
+var zAxis = new THREE.Vector3(0, 0, 1);
+function showVParts(on) {
+  vParts.forEach(function (p) { p.top.visible = p.bot.visible = p.line.visible = on; });
+  sectors.forEach(function (p) { p.top.visible = p.bot.visible = p.line.visible = !on; });
+  foldMarks.forEach(function (m) { m.visible = on; });
+  vLabels.forEach(function (pair) { pair.forEach(function (sp) { sp.visible = on && labelsOn; }); });
+}
+showVParts(false);
+
+function readTheme() {
+  var cs = getComputedStyle(document.documentElement);
+  lineMat.color.set(cs.getPropertyValue("--edge").trim() || "#3b342a");
+  markerOn.color.set(cs.getPropertyValue("--accent").trim() || "#b5422a");
+  dirty = true;
+}
+
+// Corner positions for the flat hexagon and for the two halves of a flex.
+function V(x, y, z) { return new THREE.Vector3(x, y, z); }
+function flatPose() {
+  var p = { C: V(0, 0, 0) };
+  for (var j = 0; j < 6; j++) p[j] = V(Math.cos(j * Math.PI / 3), Math.sin(j * Math.PI / 3), 0);
+  return p;
+}
+// Rigid-panel mechanism: six unit triangles round a centre, alternate corners lifted.
+function mech(rho) {
+  var h = Math.sqrt(Math.max(0, 1 - rho * rho));
+  var R = Math.hypot(rho, 2 * h), d = Math.atan2(2 * h, rho);
+  var b = d - Math.acos(Math.min(1, 1 / R));
+  return { rho: rho, h: h, r: Math.cos(b), z: Math.sin(b) };
+}
+function phase1Pose(u) {
+  var a = u * Math.PI / 2, m = mech(Math.cos(a));
+  var p = { C: V(0, 0, 0) };
+  for (var j = 0; j < 6; j++) {
+    var t = j * Math.PI / 3;
+    p[j] = j % 2 === 0 ? V(m.rho * Math.cos(t), m.rho * Math.sin(t), m.h) : V(m.r * Math.cos(t), m.r * Math.sin(t), m.z);
+  }
+  return shiftZ(p, -0.5 * u);
+}
+function phase2Pose(u) {
+  var a = u * Math.PI / 2, m = mech(Math.sin(a));
+  var p = { C: V(0, 0, 1) };
+  for (var j = 0; j < 6; j++) {
+    var t = j * Math.PI / 3;
+    p[j] = j % 2 === 0 ? V(m.rho * Math.cos(t), m.rho * Math.sin(t), 1 - m.h) : V(m.r * Math.cos(t), m.r * Math.sin(t), 1 - m.z);
+  }
+  return shiftZ(p, -0.5 - 0.5 * u);
+}
+function shiftZ(p, dz) { for (var k in p) p[k].z += dz; return p; }
+function uvFor(st, leaf, side, vIdx, order) {
+  // vIdx: corner P -> vertex index (0 centre, 1 V_k, 2 V_k+1). order: vertex order, counter-clockwise from the visible side.
+  var refP = model.ref[side];
+  var a = vIdx[refP];
+  var pos = order.indexOf(a);
+  var out = [];
+  out[order[pos]] = UV.A;
+  out[order[(pos + 1) % 3]] = UV.B;
+  out[order[(pos + 2) % 3]] = UV.C;
+  return out;
+}
+function setSheet(mesh, verts, order, uvs, face) {
+  var pa = mesh.geometry.attributes.position.array, ua = mesh.geometry.attributes.uv.array;
+  for (var i = 0; i < 3; i++) {
+    var v = verts[order[i]], uv = uvs[order[i]];
+    pa[3 * i] = v.x; pa[3 * i + 1] = v.y; pa[3 * i + 2] = v.z;
+    ua[2 * i] = uv[0]; ua[2 * i + 1] = uv[1];
+  }
+  mesh.geometry.attributes.position.needsUpdate = true;
+  mesh.geometry.attributes.uv.needsUpdate = true;
+  mesh.geometry.computeVertexNormals();
+  mesh.geometry.computeBoundingSphere();
+  mesh.material = materials[face - 1];
+}
+// shift > 0 pushes each sector towards its top side, < 0 towards its bottom side.
+function renderState(st, pose, shift) {
+  var E = model.E;
+  for (var k = 0; k < 6; k++) {
+    var base = [pose.C, pose[k], pose[(k + 1) % 6]];
+    var nrm = new THREE.Vector3().subVectors(base[1], base[0]).cross(new THREE.Vector3().subVectors(base[2], base[0])).normalize();
+    var verts = base.map(function (v) { return v.clone().addScaledVector(nrm, shift); });
+    var t = E.topSide(st, k), b = E.botSide(st, k);
+    var idxOf = function (leaf) {
+      var m = {};
+      E.corners(leaf).forEach(function (P) { var p = st.pos[P]; m[P] = p === "C" ? 0 : (p === k ? 1 : 2); });
+      return m;
+    };
+    var topOrder = [0, 1, 2], botOrder = [0, 2, 1];
+    setSheet(sectors[k].top, verts, topOrder, uvFor(st, t.leaf, t.side, idxOf(t.leaf), topOrder), model.faceOf[t.side]);
+    setSheet(sectors[k].bot, verts, botOrder, uvFor(st, b.leaf, b.side, idxOf(b.leaf), botOrder), model.faceOf[b.side]);
+    var la = sectors[k].line.geometry.attributes.position.array, e = [0, 1, 1, 2, 2, 0];
+    for (var i = 0; i < 6; i++) { var v = verts[e[i]]; la[3 * i] = v.x; la[3 * i + 1] = v.y; la[3 * i + 2] = v.z; }
+    sectors[k].line.geometry.attributes.position.needsUpdate = true;
+    sectors[k].line.geometry.computeBoundingSphere();
+  }
+}
+// Vertex order of each piece seen from the side that faces up before the V-flex.
+var V_UP = {};
+for (var vk2 = 1; vk2 <= 9; vk2++) {
+  var vt = V_TRI[vk2].map(function (i) { var x = V_BEFORE[i]; return x === "C" ? [0, 0] : [Math.cos(x * Math.PI / 3), Math.sin(x * Math.PI / 3)]; });
+  V_UP[vk2] = (vt[1][0] - vt[0][0]) * (vt[2][1] - vt[0][1]) - (vt[1][1] - vt[0][1]) * (vt[2][0] - vt[0][0]) > 0 ? [0, 1, 2] : [0, 2, 1];
+}
+function uvsFor(ref, order) {
+  var pos = order.indexOf(ref), out = [];
+  out[order[pos]] = UV.A; out[order[(pos + 1) % 3]] = UV.B; out[order[(pos + 2) % 3]] = UV.C;
+  return out;
+}
+// Draw the V-flex rig at frame position f (fractional) of vPath, turned to corner v.
+function renderV(rig, v, f) {
+  var i0 = Math.max(0, Math.min(vPath.frames.length - 1, Math.floor(f))), i1 = Math.min(vPath.frames.length - 1, i0 + 1), w = f - i0;
+  var A = vPath.frames[i0], B = vPath.frames[i1], OA = vPath.offs[i0], OB = vPath.offs[i1];
+  var c = Math.cos(v * Math.PI / 3), sn = Math.sin(v * Math.PI / 3);
+  var turn = function (p) { return V(p[0] * c - p[1] * sn, p[0] * sn + p[1] * c, p[2]); };
+  var at = function (i) { return turn([0, 1, 2].map(function (q) { return A[i][q] + (B[i][q] - A[i][q]) * w; })); };
+  var X = [null]; for (var i = 1; i <= 9; i++) X.push(at(i));
+  rig.pieces.forEach(function (p, n) {
+    var o = turn([0, 1, 2].map(function (q) { return OA[p.k][q] + (OB[p.k][q] - OA[p.k][q]) * w; }));
+    var verts = V_TRI[p.k].map(function (i) { return X[i].clone().add(o); });
+    var up = V_UP[p.k], down = [up[0], up[2], up[1]];
+    setSheet(vParts[n].top, verts, up, uvsFor(p.upRef, up), model.faceOf[p.up]);
+    setSheet(vParts[n].bot, verts, down, uvsFor(p.downRef, down), model.faceOf[p.down]);
+    var la = vParts[n].line.geometry.attributes.position.array, e = [0, 1, 1, 2, 2, 0];
+    for (var j = 0; j < 6; j++) { var vv = verts[e[j]]; la[3 * j] = vv.x; la[3 * j + 1] = vv.y; la[3 * j + 2] = vv.z; }
+    vParts[n].line.geometry.attributes.position.needsUpdate = true;
+    vParts[n].line.geometry.computeBoundingSphere();
+    // Just off each face, closer than the next layer, so a label hides under any layer lying on top of it.
+    var cen = verts[0].clone().add(verts[1]).add(verts[2]).multiplyScalar(1 / 3);
+    var nrm = new THREE.Vector3().subVectors(verts[up[1]], verts[up[0]]).cross(new THREE.Vector3().subVectors(verts[up[2]], verts[up[0]])).normalize();
+    vLabels[n][0].material = vLabels[n][1].material = labelMats[p.k];
+    vLabels[n][0].position.copy(cen).addScaledVector(nrm, 0.004);
+    vLabels[n][0].quaternion.setFromUnitVectors(zAxis, nrm);
+    vLabels[n][1].position.copy(cen).addScaledVector(nrm, -0.004);
+    vLabels[n][1].quaternion.setFromUnitVectors(zAxis, nrm.clone().negate());
+  });
+  foldMarks[0].position.copy(X[2]); foldMarks[1].position.copy(X[4]);
+}
+// Which corners the V-flex works at in the current state (cached per state).
+var vCache = { st: null, ok: null };
+function vSpots() {
+  if (vCache.st !== state) { vCache.st = state; vCache.ok = [0, 1, 2, 3, 4, 5].map(function (j) { return !!model.E.vflex(state, j); }); }
+  return vCache.ok;
+}
+// Pinch: the three corners that will meet. V-flex: the two corners that will meet (large), the crease between
+// them, and small bright dots on the other creases where a V-flex works.
+function showMarkers(on) {
+  var flat = flatPose(), vOK = kind === "v" ? vSpots() : null;
+  for (var j = 0; j < 6; j++) {
+    markers[j].visible = on;
+    markers[j].position.copy(flat[j]);
+    if (!vOK) {
+      markers[j].material = j % 2 === parity ? markerOn : markerOff;
+      markers[j].scale.setScalar(j % 2 === parity ? 1 : 0.7);
+      continue;
+    }
+    var meet = j === vpos || j === (vpos + 2) % 6, crease = vOK[(j + 5) % 6];
+    markers[j].material = (meet && vOK[vpos]) || (!meet && crease) ? markerOn : markerOff;
+    markers[j].scale.setScalar(meet ? 1.3 : crease ? 0.7 : 0.55);
+  }
+  axisLine.visible = on && !!vOK;
+  axisLine.rotation.set(0, 0, (vpos + 1) * Math.PI / 3);
+}
+
+var dirty = true;
+function placeCamera() {
+  var cp = Math.cos(view.pitch);
+  camera.position.set(view.dist * cp * Math.cos(view.yaw), view.dist * cp * Math.sin(view.yaw), view.dist * Math.sin(view.pitch));
+  camera.lookAt(0, 0, 0);
+  sun.position.copy(camera.position).add(V(1.2, 0.8, 2));
+}
+function resize() {
+  var w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / Math.max(1, h);
+  camera.updateProjectionMatrix();
+  dirty = true;
+}
+new ResizeObserver(resize).observe(stage);
+
+/* ---------- Animation ---------- */
+var ease = function (u) { return u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2; };
+function idleDraw() {
+  root.rotation.set(0, 0, 0);
+  renderState(state, flatPose(), 0);
+  showMarkers(true);
+  dirty = true;
+}
+function busy() { return !!anim || !!vg; }
+function setButtons() {
+  var b = busy();
+  ["b-flex", "b-rot", "b-flip", "b-corner", "b-reset", "m-tri", "m-hexa", "k-pinch", "k-v"].forEach(function (id) { $(id).disabled = b; });
+  if (!model.hasV) $("k-v").disabled = true;
+  $("b-auto").disabled = false;
+}
+function start(a) { a.t0 = performance.now(); anim = a; showMarkers(false); setButtons(); dirty = true; }
+function finish() {
+  var a = anim; anim = null;
+  if (a.done) a.done();
+  idleDraw(); updatePanel(); setButtons();
+  if (autoOn) autoTimer = setTimeout(autoStep, reduceMotion ? 400 : 550);
+}
+function step(now) {
+  if (vg) vgTick(now);
+  if (anim) {
+    var a = anim, u = Math.min(1, (now - a.t0) / (a.dur / SPEED));
+    a.frame(u);
+    dirty = true;
+    if (u >= 1) finish();
+  }
+  if (dirty) { placeCamera(); renderer.render(scene, camera); dirty = false; }
+  requestAnimationFrame(step);
+}
+
+function doRotate() {
+  if (busy()) return;
+  start({ dur: 520, frame: function (u) { root.rotation.set(0, 0, ease(u) * Math.PI / 3); },
+    done: function () { state = model.E.rot(state); } });
+}
+function doFlip() {
+  if (busy()) return;
+  start({ dur: 800, frame: function (u) { root.rotation.set(ease(u) * Math.PI, 0, 0); },
+    done: function () { state = model.E.flip(state); } });
+}
+function doFlex() {
+  if (busy()) return false;
+  var E = model.E;
+  var base = parity ? E.rotN(state, 5) : state;
+  var next = E.flex(base);
+  var offset = parity ? Math.PI / 3 : 0;
+  if (!next) {
+    start({ dur: 700, frame: function (u) {
+      var w = Math.sin(u * Math.PI) * 0.22;
+      root.rotation.set(0, 0, offset);
+      renderState(base, phase1Pose(w), -0.02 * w * 4);
+    } });
+    say("It won't open at these corners. Try the other three.");
+    return false;
+  }
+  start({ dur: 2000, frame: function (u) {
+    root.rotation.set(0, 0, offset);
+    if (u < 0.5) { var p = ease(u * 2); renderState(base, phase1Pose(p), -0.02 * p); }
+    else { var q = ease((u - 0.5) * 2); renderState(next, phase2Pose(q), 0.02 * (1 - q)); }
+  }, done: function () { state = parity ? E.rot(next) : next; flexCount++; } });
+  return true;
+}
+/* ---------- V-flex, step by step ---------- */
+var vg = null, vgLast = 0;
+var VG_SPEED = 42;  // frames of vPath per second
+function startVFlex() {
+  if (busy()) return false;
+  var rig = vRig(model, state, vpos);
+  if (!rig) {
+    var elsewhere = vSpots().some(function (x) { return x; });
+    say(elsewhere ? "No V-flex at this crease. The small bright dots mark creases where it works." : "No V-flex works anywhere right now. Pinch flex first, then try again.", 3400);
+    return false;
+  }
+  // Turn the view so the crease points away and the two corners that meet are left and right.
+  var yaw1 = (vpos + 1) * Math.PI / 3 - Math.PI;
+  while (yaw1 - view.yaw > Math.PI) yaw1 -= 2 * Math.PI;
+  while (view.yaw - yaw1 > Math.PI) yaw1 += 2 * Math.PI;
+  vg = { rig: rig, v: vpos, f: 0, to: 0, playing: false, cam: { t0: performance.now(), yaw0: view.yaw, yaw1: yaw1, p0: view.pitch, p1: 0.8 } };
+  showMarkers(false); showVParts(true); setButtons();
+  $("vguide").hidden = false;
+  vgUpdate(); renderV(vg.rig, vg.v, 0); dirty = true;
+  return true;
+}
+function vgStep() { var m = vPath.marks; for (var i = 0; i < 4; i++) if (vg.f < m[i + 1] - 0.01) return i; return 4; }
+function vgUpdate() {
+  var i = vgStep(), m = vPath.marks, done = i === 4, shown = Math.min(i, 3);
+  $("vg-count").textContent = done ? "Done" : "Step " + (i + 1) + " of 4";
+  $("vg-title").textContent = done ? "The V-flex is complete" : V_STEPS[i].title;
+  $("vg-text").textContent = done ? "Press Finish to keep the new arrangement, or go back to watch a step again." : V_STEPS[i].text;
+  $("vg-scrub").value = String(Math.round(vg.f));
+  $("vg-play").textContent = vg.playing ? "Pause" : "Play all";
+  $("vg-next").textContent = done ? "Finish" : vg.f > m[shown] + 0.5 && !vg.playing ? "Continue" : "Show step " + (shown + 1);
+  $("vg-back").disabled = vg.f <= 0;
+  [].forEach.call(document.querySelectorAll("#vg-dots span"), function (d, k) { d.className = k < i ? "on" : k === i ? "cur" : ""; });
+}
+function vgGo(to, play) { vg.to = Math.max(0, Math.min(vPath.frames.length - 1, to)); vg.playing = play !== false && vg.to !== vg.f; vgLast = performance.now(); vgUpdate(); }
+function vgTick(now) {
+  var c = vg.cam;
+  if (c) {
+    var u = Math.min(1, (now - c.t0) / 700);
+    view.yaw = c.yaw0 + (c.yaw1 - c.yaw0) * ease(u); view.pitch = c.p0 + (c.p1 - c.p0) * ease(u);
+    dirty = true;
+    if (u >= 1) vg.cam = null;
+  }
+  if (!vg.playing) return;
+  var dt = (now - vgLast) / 1000; vgLast = now;
+  var d = vg.to - vg.f, stepF = VG_SPEED * SPEED * Math.min(dt, 0.1);
+  vg.f = Math.abs(d) <= stepF ? vg.to : vg.f + Math.sign(d) * stepF;
+  if (vg.f === vg.to) vg.playing = false;
+  renderV(vg.rig, vg.v, vg.f); vgUpdate(); dirty = true;
+}
+function vgNext() {
+  var i = vgStep();
+  if (i === 4) return vgFinish();
+  vgGo(vPath.marks[i + 1]);
+}
+function vgBack() {
+  var i = vgStep(), m = vPath.marks, startI = m[Math.min(i, 3)];
+  vgGo(vg.f > startI + 0.5 ? startI : m[Math.max(0, Math.min(i, 3) - 1)]);
+}
+function vgEnd(commit) {
+  var g = vg; vg = null;
+  $("vguide").hidden = true;
+  showVParts(false);
+  if (commit) { state = g.rig.next; flexCount++; vCount++; }
+  idleDraw(); updatePanel(); setButtons();
+}
+function vgFinish() { vgEnd(true); }
+function doCurrentFlex() { return kind === "v" ? startVFlex() : doFlex(); }
+function setKind(k) {
+  if (k === "v" && !model.hasV) k = "pinch";
+  kind = k;
+  $("k-pinch").setAttribute("aria-pressed", k === "pinch" ? "true" : "false");
+  $("k-v").setAttribute("aria-pressed", k === "v" ? "true" : "false");
+  $("b-flex").textContent = k === "v" ? "V-flex" : "Pinch flex";
+  $("b-corner").textContent = k === "v" ? "Move the V" : "Use other corners";
+  $("stage-note").textContent = k === "v" ? "Drag to turn the view, even underneath. Tap a corner to make it the crease of the V." : "Drag to turn the view, even underneath. Tap a corner to pinch there.";
+  $("kind-note").hidden = model.hasV;
+  showMarkers(!busy());
+  dirty = true;
+}
+// Next crease along where the V-flex works, or simply the next one if none does.
+function moveV() {
+  var ok = vSpots();
+  for (var i = 1; i <= 6; i++) if (ok[(vpos + i) % 6]) { vpos = (vpos + i) % 6; return; }
+  vpos = (vpos + 1) % 6;
+}
+function canFlex(par) { return !!model.E.flexAt(state, par); }
+function autoStep() {
+  if (!autoOn || busy()) return;
+  if (!canFlex(parity)) { parity = 1 - parity; showMarkers(true); dirty = true; }
+  doFlex();
+}
+function setAuto(on) {
+  if (on && vg) vgEnd(false);
+  autoOn = on;
+  $("b-auto").setAttribute("aria-pressed", on ? "true" : "false");
+  $("b-auto").textContent = on ? "Stop the tour" : "Tuckerman tour";
+  clearTimeout(autoTimer);
+  if (on) { setKind("pinch"); say("Flexing at the same corners while they open, otherwise moving one corner over.", 3200); autoStep(); }
+}
+function setModel(key) {
+  setAuto(false);
+  if (vg) vgEnd(false);
+  model = MODELS[key];
+  state = model.init;
+  parity = 0; vpos = 0; flexCount = 0; vCount = 0; seenFaces = {};
+  $("m-tri").setAttribute("aria-pressed", key === "tri" ? "true" : "false");
+  $("m-hexa").setAttribute("aria-pressed", key === "hexa" ? "true" : "false");
+  setKind(kind);
+  setButtons();
+  idleDraw(); updatePanel(); drawNet();
+}
+
+$("b-flex").addEventListener("click", function () { setAuto(false); doCurrentFlex(); });
+$("k-pinch").addEventListener("click", function () { setAuto(false); setKind("pinch"); });
+$("k-v").addEventListener("click", function () { setAuto(false); setKind("v"); });
+$("b-rot").addEventListener("click", function () { setAuto(false); doRotate(); });
+$("b-flip").addEventListener("click", function () { setAuto(false); doFlip(); });
+$("b-corner").addEventListener("click", function () {
+  setAuto(false);
+  if (kind === "v") moveV(); else parity = 1 - parity;
+  showMarkers(true); dirty = true;
+});
+$("b-auto").addEventListener("click", function () { setAuto(!autoOn); });
+$("b-reset").addEventListener("click", function () { setModel(model === MODELS.tri ? "tri" : "hexa"); });
+$("m-tri").addEventListener("click", function () { setModel("tri"); });
+$("m-hexa").addEventListener("click", function () { setModel("hexa"); });
+document.addEventListener("keydown", function (e) {
+  if (e.target.closest && e.target.closest("button, input")) return;
+  if (vg) {
+    if (e.key === " " || e.key === "ArrowRight" || e.key === "v" || e.key === "f") { e.preventDefault(); vgNext(); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); vgBack(); }
+    else if (e.key === "Escape") vgEnd(false);
+    return;
+  }
+  if (e.key === "f" || e.key === " ") { e.preventDefault(); setAuto(false); doCurrentFlex(); }
+  else if (e.key === "v" && model.hasV) { setAuto(false); setKind("v"); startVFlex(); }
+  else if (e.key === "r") { setAuto(false); doRotate(); }
+  else if (e.key === "t") { setAuto(false); doFlip(); }
+});
+
+$("vg-next").addEventListener("click", function () { if (vg) vgNext(); });
+$("vg-back").addEventListener("click", function () { if (vg) vgBack(); });
+$("vg-cancel").addEventListener("click", function () { if (vg) vgEnd(false); });
+$("vg-labels").checked = labelsOn;
+$("vg-labels").addEventListener("change", function () {
+  labelsOn = this.checked;
+  try { localStorage.setItem("vflexLabels", labelsOn ? "on" : "off"); } catch (e) {}
+  $("vg-note").hidden = !labelsOn;
+  if (vg) { showVParts(true); dirty = true; }
+});
+$("vg-note").hidden = !labelsOn;
+$("vg-play").addEventListener("click", function () {
+  if (!vg) return;
+  if (vg.playing) { vg.playing = false; vg.to = vg.f; vgUpdate(); }
+  else vgGo(vg.f >= vPath.frames.length - 1 ? 0 : vPath.frames.length - 1);
+});
+$("vg-scrub").max = String(vPath.frames.length - 1);
+$("vg-scrub").addEventListener("input", function () {
+  if (!vg) return;
+  vg.playing = false; vg.f = vg.to = +this.value;
+  renderV(vg.rig, vg.v, vg.f); vgUpdate(); dirty = true;
+});
+
+/* ---------- Drag to orbit, tap to pick corners ---------- */
+var drag = null;
+renderer.domElement.addEventListener("pointerdown", function (e) {
+  drag = { x: e.clientX, y: e.clientY, yaw: view.yaw, pitch: view.pitch, moved: false };
+  renderer.domElement.setPointerCapture(e.pointerId);
+});
+renderer.domElement.addEventListener("pointermove", function (e) {
+  if (!drag) return;
+  var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (Math.abs(dx) + Math.abs(dy) > 5) drag.moved = true;
+  if (!drag.moved) return;
+  view.yaw = drag.yaw - dx * 0.008;
+  view.pitch = Math.max(-1.5, Math.min(1.5, drag.pitch + dy * 0.008));
+  dirty = true;
+});
+renderer.domElement.addEventListener("pointerup", function (e) {
+  if (drag && !drag.moved && !busy()) pick(e);
+  drag = null;
+});
+renderer.domElement.addEventListener("pointercancel", function () { drag = null; });
+function pick(e) {
+  var r = renderer.domElement.getBoundingClientRect();
+  var best = -1, bd = 40;
+  var flat = flatPose();
+  for (var j = 0; j < 6; j++) {
+    var p = flat[j].clone().project(camera);
+    var x = (p.x + 1) / 2 * r.width, y = (1 - p.y) / 2 * r.height;
+    var d = Math.hypot(x - (e.clientX - r.left), y - (e.clientY - r.top));
+    if (d < bd) { bd = d; best = j; }
+  }
+  if (best < 0) return;
+  if (kind === "v") vpos = (best + 5) % 6; else parity = best % 2;
+  showMarkers(true); dirty = true;
+}
+
+if (window.matchMedia) {
+  var mq = window.matchMedia("(prefers-color-scheme: dark)");
+  if (mq.addEventListener) mq.addEventListener("change", readTheme);
+}
+new MutationObserver(readTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+readTheme();
+resize();
+setModel("tri");
+setButtons();
+requestAnimationFrame(step);
+window.__flexagon = { flex: doFlex, vflex: startVFlex, vnext: function () { vg && vgNext(); }, get vg() { return vg; }, rotate: doRotate, flip: doFlip, models: MODELS, get state() { return state; } };
+})();
+</script>
+</body>
+</html>
