@@ -1,0 +1,1366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Fold, pinch flex, V-flex and turn over a simulated trihexaflexagon and hexahexaflexagon in 3D.">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Hexaflexagon Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500&display=swap">
+<style>
+/* Layout: a workbench. The folded model sits large on the left, the controls and face map on the right, the printable strip below. */
+:root {
+  --bg: #f2efe8;
+  --fg: #1f1d1a;
+  --muted: #6a6459;
+  --rule: #d6cfc1;
+  --panel: #faf8f3;
+  --stage: #e9e4d8;
+  --accent: #b5422a;
+  --accent-fg: #ffffff;
+  --edge: #3b342a;
+  --display: "Newsreader", Georgia, "Times New Roman", serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #151412;
+    --fg: #ece7dd;
+    --muted: #a39b8c;
+    --rule: #37332c;
+    --panel: #1d1b18;
+    --stage: #23211d;
+    --accent: #e7765a;
+    --accent-fg: #1a0f0b;
+    --edge: #14110d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #151412;
+  --fg: #ece7dd;
+  --muted: #a39b8c;
+  --rule: #37332c;
+  --panel: #1d1b18;
+  --stage: #23211d;
+  --accent: #e7765a;
+  --accent-fg: #1a0f0b;
+  --edge: #14110d;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 56px;
+}
+main { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 500; line-height: 1.12; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2.1rem, 5vw, 3.2rem); letter-spacing: -0.01em; }
+h2 { font-size: 1.55rem; }
+h3 { font-size: 1.15rem; }
+p { margin: 0; max-width: 66ch; }
+.kicker { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); }
+.muted { color: var(--muted); }
+.lede a { color: var(--accent); text-underline-offset: 3px; }
+header { display: flex; flex-direction: column; gap: 12px; }
+.lede { font-size: 1.08rem; }
+
+.bench { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 860px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+
+.stage {
+  position: relative;
+  background: var(--stage);
+  border-radius: 8px;
+  aspect-ratio: 1 / 1;
+  max-width: 100%;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+}
+.stage:active { cursor: grabbing; }
+.stage canvas { display: block; width: 100%; height: 100%; }
+.stage-note {
+  position: absolute; left: 12px; bottom: 10px; right: 12px;
+  font-family: var(--mono); font-size: 0.72rem; color: var(--muted);
+  pointer-events: none;
+}
+.stage-msg {
+  position: absolute; left: 50%; top: 14px; transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  background: var(--panel); color: var(--fg);
+  border: 1px solid var(--rule); border-radius: 999px;
+  padding: 6px 14px; font-size: 0.86rem; text-align: center;
+  pointer-events: none;
+}
+.loading {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  color: var(--muted); font-family: var(--mono); font-size: 0.8rem; text-align: center; padding: 24px;
+}
+
+.stagecol { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.guide { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+.guide-top { display: flex; align-items: center; gap: 12px; }
+.guide-top .chk { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); cursor: pointer; }
+.guide-top .chk input { accent-color: var(--accent); margin: 0; }
+.guide p.note { min-height: 0; font-size: 0.82rem; }
+.guide p { font-size: 0.95rem; min-height: 4.6em; }
+.guide.bend h3::after { content: " · not simulated"; font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); vertical-align: middle; }
+.dots { display: inline-flex; gap: 5px; }
+.dots span { width: 22px; height: 4px; border-radius: 2px; background: var(--rule); }
+.dots span.on { background: var(--fg); }
+.dots span.cur { background: var(--accent); }
+#vg-scrub { width: 100%; accent-color: var(--accent); margin: 2px 0; }
+.guide-btns { display: grid; grid-template-columns: 1fr 1fr 1.5fr; gap: 8px; }
+button.quiet { border-color: transparent; color: var(--muted); padding: 4px 8px; min-height: 30px; }
+.side { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.group { display: flex; flex-direction: column; gap: 10px; }
+.label { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 999px; padding: 3px; gap: 3px; flex-wrap: wrap; }
+.seg button { border: 0; border-radius: 999px; padding: 6px 14px; }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+
+button {
+  font: inherit; font-size: 0.9rem; color: var(--fg);
+  background: transparent; border: 1px solid var(--rule); border-radius: 6px;
+  padding: 8px 14px; cursor: pointer; min-height: 38px;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: 0.45; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+button.primary:hover:not(:disabled) { filter: brightness(1.06); }
+button[aria-pressed="true"].toggle { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.actions .primary { grid-column: 1 / -1; font-size: 1rem; min-height: 46px; }
+
+.faces { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.facecard { border: 1px solid var(--rule); border-radius: 6px; padding: 10px 12px; display: flex; gap: 12px; align-items: center; background: var(--panel); min-width: 0; }
+.hexchip { width: 40px; height: 40px; flex: none; }
+.facecard .num { font-family: var(--display); font-size: 1.5rem; line-height: 1; }
+.facecard .sub { font-size: 0.78rem; color: var(--muted); }
+
+.stats { display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--mono); font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats b { color: var(--fg); font-weight: 500; }
+
+.mapwrap { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 8px; }
+#facemap { display: block; width: 100%; height: auto; max-height: 260px; }
+#facemap text { font-family: var(--display); font-size: 17px; fill: #fff; pointer-events: none; }
+#facemap .edge { stroke: var(--rule); stroke-width: 2; }
+#facemap .edge.on { stroke: var(--fg); stroke-width: 3.5; }
+#facemap .ring { fill: none; stroke: var(--fg); stroke-width: 2.5; }
+
+.net-section { display: flex; flex-direction: column; gap: 16px; }
+.netscroll { overflow-x: auto; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 14px; }
+.netscroll svg { display: block; height: auto; }
+.netscroll .cap { font-family: var(--mono); font-size: 10px; fill: var(--muted); letter-spacing: 0.06em; }
+.netscroll .tri-num { font-family: var(--display); font-size: 15px; fill: #fff; }
+.netscroll .glue { font-family: var(--mono); font-size: 9px; fill: var(--muted); }
+
+.about { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px 32px; }
+.about > div { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.about p { font-size: 0.95rem; }
+.share { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; border-top: 1px solid var(--rule); padding-top: 28px; }
+.share .qr { width: 132px; height: 132px; flex: none; background: #fff; padding: 10px; border-radius: 8px; border: 1px solid var(--rule); }
+.share .qr svg { display: block; width: 100%; height: 100%; }
+.share > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.share a { color: var(--accent); text-underline-offset: 3px; font-family: var(--mono); font-size: 0.85rem; overflow-wrap: anywhere; }
+.legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; margin-right: 4px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+
+<main>
+  <header>
+    <span class="kicker">Paper folding · Live model</span>
+    <h1>Hexaflexagon Explorer</h1>
+    <p class="lede">A hexaflexagon is a hexagon folded from one strip of paper triangles and glued into a loop. Pinch three corners together and it turns inside out, bringing a hidden face to the top. The model below tracks every triangle of the glued strip, so each flex follows the same rules as the paper. Besides the classic pinch flex, the hexahexaflexagon can also do the V-flex, which breaks faces apart and mixes them. The model performs it the way Scott Sherman describes it in <a href="https://www.loki3.com/flex/g4g10/Flex-Theory.pdf">Flex Theory</a>: fold two corners together, open the centre, slide, and open up again.</p>
+    <p class="lede"><a href="flexagons_booklet.pdf">Download the booklet <em>Flexagons: paper that hides its faces</em> (PDF)</a>, a hands-on introduction for students: how to fold flexagons, games to play with them, their history, and the mathematics behind them.</p>
+  </header>
+
+  <section class="bench" aria-label="Interactive hexaflexagon">
+    <div class="stagecol">
+    <div class="stage" id="stage">
+      <div class="loading" id="loading">Loading the 3D view…</div>
+      <div class="stage-msg" id="msg" hidden></div>
+      <div class="stage-note" id="stage-note">Drag to turn the view, even underneath. Tap a corner to pinch there.</div>
+    </div>
+    <div class="guide" id="vguide" hidden>
+      <div class="guide-top">
+        <span class="label" id="vg-count">Step 1 of 5</span>
+        <span class="dots" id="vg-dots" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></span>
+        <label class="chk"><input type="checkbox" id="vg-labels" checked> Letters</label>
+        <button type="button" id="vg-cancel" class="quiet">Cancel</button>
+      </div>
+      <h3 id="vg-title"></h3>
+      <p id="vg-text" aria-live="polite"></p>
+      <input type="range" id="vg-scrub" min="0" max="272" step="1" value="0" aria-label="Position in the V-flex">
+      <div class="guide-btns">
+        <button type="button" id="vg-back">Back</button>
+        <button type="button" id="vg-play">Play all</button>
+        <button type="button" class="primary" id="vg-next">Show step 1</button>
+      </div>
+      <p class="note muted" id="vg-note">Letters a to i name the nine pieces that move as units, as in Sherman's pattern; each shows on both of its sides. The red ones, d, e and f, are the leaves that have to give: they part at the centre in step 2, change order in step 3, and close again in step 4. Mark them the same way on your own flexagon and watch them.</p>
+    </div>
+    </div>
+
+    <div class="side">
+      <div class="group">
+        <span class="label">Flexagon</span>
+        <div class="seg" role="group" aria-label="Choose a flexagon">
+          <button type="button" id="m-tri" aria-pressed="true">Trihexa · 3 faces</button>
+          <button type="button" id="m-hexa" aria-pressed="false">Hexahexa · 6 faces</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="label">Do</span>
+        <div class="seg" role="group" aria-label="Choose a flex">
+          <button type="button" id="k-pinch" aria-pressed="true">Pinch flex</button>
+          <button type="button" id="k-v" aria-pressed="false">V-flex</button>
+        </div>
+        <p class="muted" id="kind-note" style="font-size:0.85rem" hidden>The V-flex needs a flexagon with four faces or more, so the trihexaflexagon can't do it. Switch to the hexahexaflexagon.</p>
+        <div class="actions">
+          <button type="button" class="primary" id="b-flex">Pinch flex</button>
+          <button type="button" id="b-corner">Use other corners</button>
+          <button type="button" id="b-rot">Rotate one step</button>
+          <button type="button" id="b-flip">Turn over</button>
+          <button type="button" id="b-auto" class="toggle" aria-pressed="false">Tuckerman tour</button>
+          <button type="button" id="b-reset" style="grid-column:1/-1">Start again</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="label">Showing now</span>
+        <div class="faces">
+          <div class="facecard"><svg class="hexchip" id="chip-top" viewBox="-1.1 -1.1 2.2 2.2" aria-hidden="true"></svg><div><div class="num" id="f-top">1</div><div class="sub">on top</div></div></div>
+          <div class="facecard"><svg class="hexchip" id="chip-bot" viewBox="-1.1 -1.1 2.2 2.2" aria-hidden="true"></svg><div><div class="num" id="f-bot">2</div><div class="sub">underneath</div></div></div>
+        </div>
+        <div class="stats" aria-live="polite">
+          <span>Flexes <b id="s-flex">0</b></span>
+          <span>V-flexes <b id="s-v">0</b></span>
+          <span>Faces seen <b id="s-seen">2 of 3</b></span>
+          <span>Top picture <b id="s-pic">centred</b></span>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="label">Face map</span>
+        <div class="mapwrap"><svg id="facemap" viewBox="-130 -125 260 250" role="img" aria-label="Which faces can appear together"></svg></div>
+        <p class="muted" style="font-size:0.85rem">Each line joins two faces that can show at the same time, one on top and one underneath. The thick line is the pair you see now. After a V-flex a side can show pieces of several faces; then every face in view is ringed and no line is thick.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="net-section" aria-labelledby="net-title">
+    <span class="kicker">Template</span>
+    <h2 id="net-title">The strip before gluing</h2>
+    <p class="muted" id="net-desc">Every triangle in the model has a front and a back. These are the face numbers each one carries, worked out by the same simulation. The rings show where to draw a picture so that it lines up when the face first appears.</p>
+    <div class="netscroll"><svg id="net" aria-label="Strip template, front and back"></svg></div>
+  </section>
+
+  <section class="about" aria-label="How it works">
+    <div>
+      <h3>What a pinch flex does</h3>
+      <p>The three marked corners rise and meet above the middle, folding the hexagon into a three-bladed star. The blades then split open from the top and lie flat again. The corners you pinched are now the centre, and the old centre has become three of the outer corners.</p>
+    </div>
+    <div>
+      <h3>Why it sometimes won't open</h3>
+      <p>A blade can only split where its layers are not hinged together. If no such gap exists at the corners you chose, the paper refuses. Move one corner over and try again. The Tuckerman tour does this automatically: flex at the same place while it works, otherwise shift by one corner.</p>
+    </div>
+    <div>
+      <h3>What a V-flex does</h3>
+      <p>Scott Sherman's Flex Theory (Gathering 4 Gardner 10) says: fold together opposite vertices, open up the flexagon in the centre, then slide the pats before opening it up again. The model follows the photo sequence on his Flexing Flexagons page: bring two opposite corners together so that each half curls into an open tetrahedron, open the centre into a square pyramid with a pocket at one corner, slide the front wall across so the pocket closes and a new one opens on the other side, close the pyramid so the pocket's tip meets the apex, and open it out from the other side. The nine pieces of Sherman's pattern move as rigid triangles for the fold and for the unfolding at the end, which is the fold run backwards in mirror image. The three moves in between, opening the pyramid, sliding, and closing it again, cannot be done with rigid triangles in this model: the leaves have to give a little, which is the bending Sherman notes for this flex. For each of them the model stops, explains what happens, and shows the position after. Choose V-flex and press the button to step through it. The flex needs the two sectors on either side of the first corner, and one more, to hold at least two leaves each, so the trihexaflexagon can never do it.</p>
+    </div>
+    <div>
+      <h3>Mixed faces</h3>
+      <p>After a V-flex a side can show triangles from several faces, and the pictures on them can turn. With pinch flexes alone the hexahexaflexagon has 9 arrangements, counting each only once however it is rotated or turned over. Pinch and V-flexes together reach 3,420. The simulation finds exactly that number, as 41,040 states (3,420 times 6 rotations and 2 sides), matching Iacob, McLean and Wang (2012).</p>
+    </div>
+    <div>
+      <h3>How the model is built</h3>
+      <p>The trihexaflexagon is a ring of 9 triangles, the hexahexaflexagon a ring of 18. The simulation stores where each paper corner sits and the stacking order in each of the six sectors, then splits and reopens the stacks for every flex. The V-flex follows Scott Sherman's definition of it in pat notation (Flex Theory, Gathering 4 Gardner 10), which says how each stack splits and where the pieces go. As a check, every state reached by pinch flexes alone shows whole faces, never a mix, and in the hexahexaflexagon faces 1 to 3 pair with four other faces while 4 to 6 pair with only two.</p>
+    </div>
+  </section>
+  <section class="share" aria-labelledby="share-title">
+    <div class="qr"><svg viewBox="0 0 33 33" shape-rendering="crispEdges" role="img" aria-label="QR code linking to this page"><path fill="#000" d="M0 0h1v1h-1zM1 0h1v1h-1zM2 0h1v1h-1zM3 0h1v1h-1zM4 0h1v1h-1zM5 0h1v1h-1zM6 0h1v1h-1zM8 0h1v1h-1zM9 0h1v1h-1zM10 0h1v1h-1zM12 0h1v1h-1zM13 0h1v1h-1zM17 0h1v1h-1zM18 0h1v1h-1zM19 0h1v1h-1zM20 0h1v1h-1zM23 0h1v1h-1zM26 0h1v1h-1zM27 0h1v1h-1zM28 0h1v1h-1zM29 0h1v1h-1zM30 0h1v1h-1zM31 0h1v1h-1zM32 0h1v1h-1zM0 1h1v1h-1zM6 1h1v1h-1zM8 1h1v1h-1zM9 1h1v1h-1zM10 1h1v1h-1zM13 1h1v1h-1zM16 1h1v1h-1zM18 1h1v1h-1zM21 1h1v1h-1zM22 1h1v1h-1zM23 1h1v1h-1zM24 1h1v1h-1zM26 1h1v1h-1zM32 1h1v1h-1zM0 2h1v1h-1zM2 2h1v1h-1zM3 2h1v1h-1zM4 2h1v1h-1zM6 2h1v1h-1zM10 2h1v1h-1zM11 2h1v1h-1zM12 2h1v1h-1zM15 2h1v1h-1zM17 2h1v1h-1zM20 2h1v1h-1zM21 2h1v1h-1zM22 2h1v1h-1zM26 2h1v1h-1zM28 2h1v1h-1zM29 2h1v1h-1zM30 2h1v1h-1zM32 2h1v1h-1zM0 3h1v1h-1zM2 3h1v1h-1zM3 3h1v1h-1zM4 3h1v1h-1zM6 3h1v1h-1zM8 3h1v1h-1zM9 3h1v1h-1zM10 3h1v1h-1zM12 3h1v1h-1zM14 3h1v1h-1zM16 3h1v1h-1zM20 3h1v1h-1zM21 3h1v1h-1zM22 3h1v1h-1zM24 3h1v1h-1zM26 3h1v1h-1zM28 3h1v1h-1zM29 3h1v1h-1zM30 3h1v1h-1zM32 3h1v1h-1zM0 4h1v1h-1zM2 4h1v1h-1zM3 4h1v1h-1zM4 4h1v1h-1zM6 4h1v1h-1zM12 4h1v1h-1zM13 4h1v1h-1zM14 4h1v1h-1zM20 4h1v1h-1zM21 4h1v1h-1zM23 4h1v1h-1zM26 4h1v1h-1zM28 4h1v1h-1zM29 4h1v1h-1zM30 4h1v1h-1zM32 4h1v1h-1zM0 5h1v1h-1zM6 5h1v1h-1zM9 5h1v1h-1zM10 5h1v1h-1zM12 5h1v1h-1zM14 5h1v1h-1zM19 5h1v1h-1zM20 5h1v1h-1zM21 5h1v1h-1zM22 5h1v1h-1zM24 5h1v1h-1zM26 5h1v1h-1zM32 5h1v1h-1zM0 6h1v1h-1zM1 6h1v1h-1zM2 6h1v1h-1zM3 6h1v1h-1zM4 6h1v1h-1zM5 6h1v1h-1zM6 6h1v1h-1zM8 6h1v1h-1zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h1v1h-1zM16 6h1v1h-1zM18 6h1v1h-1zM20 6h1v1h-1zM22 6h1v1h-1zM24 6h1v1h-1zM26 6h1v1h-1zM27 6h1v1h-1zM28 6h1v1h-1zM29 6h1v1h-1zM30 6h1v1h-1zM31 6h1v1h-1zM32 6h1v1h-1zM8 7h1v1h-1zM11 7h1v1h-1zM12 7h1v1h-1zM17 7h1v1h-1zM18 7h1v1h-1zM20 7h1v1h-1zM22 7h1v1h-1zM24 7h1v1h-1zM0 8h1v1h-1zM2 8h1v1h-1zM3 8h1v1h-1zM5 8h1v1h-1zM6 8h1v1h-1zM7 8h1v1h-1zM9 8h1v1h-1zM11 8h1v1h-1zM12 8h1v1h-1zM14 8h1v1h-1zM16 8h1v1h-1zM17 8h1v1h-1zM18 8h1v1h-1zM19 8h1v1h-1zM21 8h1v1h-1zM23 8h1v1h-1zM26 8h1v1h-1zM29 8h1v1h-1zM31 8h1v1h-1zM32 8h1v1h-1zM0 9h1v1h-1zM1 9h1v1h-1zM3 9h1v1h-1zM4 9h1v1h-1zM5 9h1v1h-1zM7 9h1v1h-1zM9 9h1v1h-1zM12 9h1v1h-1zM16 9h1v1h-1zM19 9h1v1h-1zM20 9h1v1h-1zM21 9h1v1h-1zM22 9h1v1h-1zM23 9h1v1h-1zM26 9h1v1h-1zM27 9h1v1h-1zM29 9h1v1h-1zM30 9h1v1h-1zM32 9h1v1h-1zM0 10h1v1h-1zM1 10h1v1h-1zM2 10h1v1h-1zM3 10h1v1h-1zM5 10h1v1h-1zM6 10h1v1h-1zM7 10h1v1h-1zM9 10h1v1h-1zM12 10h1v1h-1zM14 10h1v1h-1zM16 10h1v1h-1zM17 10h1v1h-1zM20 10h1v1h-1zM23 10h1v1h-1zM24 10h1v1h-1zM26 10h1v1h-1zM27 10h1v1h-1zM28 10h1v1h-1zM29 10h1v1h-1zM31 10h1v1h-1zM32 10h1v1h-1zM2 11h1v1h-1zM4 11h1v1h-1zM5 11h1v1h-1zM7 11h1v1h-1zM8 11h1v1h-1zM10 11h1v1h-1zM11 11h1v1h-1zM12 11h1v1h-1zM13 11h1v1h-1zM14 11h1v1h-1zM16 11h1v1h-1zM18 11h1v1h-1zM20 11h1v1h-1zM24 11h1v1h-1zM27 11h1v1h-1zM29 11h1v1h-1zM31 11h1v1h-1zM0 12h1v1h-1zM2 12h1v1h-1zM3 12h1v1h-1zM4 12h1v1h-1zM5 12h1v1h-1zM6 12h1v1h-1zM7 12h1v1h-1zM11 12h1v1h-1zM18 12h1v1h-1zM19 12h1v1h-1zM21 12h1v1h-1zM24 12h1v1h-1zM25 12h1v1h-1zM27 12h1v1h-1zM28 12h1v1h-1zM29 12h1v1h-1zM32 12h1v1h-1zM1 13h1v1h-1zM4 13h1v1h-1zM8 13h1v1h-1zM10 13h1v1h-1zM11 13h1v1h-1zM12 13h1v1h-1zM16 13h1v1h-1zM17 13h1v1h-1zM18 13h1v1h-1zM22 13h1v1h-1zM27 13h1v1h-1zM29 13h1v1h-1zM31 13h1v1h-1zM1 14h1v1h-1zM4 14h1v1h-1zM6 14h1v1h-1zM7 14h1v1h-1zM9 14h1v1h-1zM10 14h1v1h-1zM13 14h1v1h-1zM14 14h1v1h-1zM15 14h1v1h-1zM16 14h1v1h-1zM18 14h1v1h-1zM24 14h1v1h-1zM26 14h1v1h-1zM28 14h1v1h-1zM29 14h1v1h-1zM1 15h1v1h-1zM2 15h1v1h-1zM3 15h1v1h-1zM7 15h1v1h-1zM10 15h1v1h-1zM12 15h1v1h-1zM13 15h1v1h-1zM14 15h1v1h-1zM16 15h1v1h-1zM18 15h1v1h-1zM19 15h1v1h-1zM20 15h1v1h-1zM21 15h1v1h-1zM22 15h1v1h-1zM23 15h1v1h-1zM24 15h1v1h-1zM25 15h1v1h-1zM26 15h1v1h-1zM27 15h1v1h-1zM28 15h1v1h-1zM29 15h1v1h-1zM30 15h1v1h-1zM0 16h1v1h-1zM1 16h1v1h-1zM4 16h1v1h-1zM5 16h1v1h-1zM6 16h1v1h-1zM9 16h1v1h-1zM11 16h1v1h-1zM13 16h1v1h-1zM14 16h1v1h-1zM15 16h1v1h-1zM18 16h1v1h-1zM19 16h1v1h-1zM20 16h1v1h-1zM21 16h1v1h-1zM22 16h1v1h-1zM23 16h1v1h-1zM24 16h1v1h-1zM25 16h1v1h-1zM26 16h1v1h-1zM28 16h1v1h-1zM29 16h1v1h-1zM30 16h1v1h-1zM3 17h1v1h-1zM8 17h1v1h-1zM11 17h1v1h-1zM14 17h1v1h-1zM15 17h1v1h-1zM17 17h1v1h-1zM21 17h1v1h-1zM22 17h1v1h-1zM23 17h1v1h-1zM24 17h1v1h-1zM25 17h1v1h-1zM26 17h1v1h-1zM28 17h1v1h-1zM29 17h1v1h-1zM32 17h1v1h-1zM1 18h1v1h-1zM3 18h1v1h-1zM4 18h1v1h-1zM6 18h1v1h-1zM7 18h1v1h-1zM10 18h1v1h-1zM13 18h1v1h-1zM14 18h1v1h-1zM15 18h1v1h-1zM17 18h1v1h-1zM22 18h1v1h-1zM25 18h1v1h-1zM27 18h1v1h-1zM28 18h1v1h-1zM30 18h1v1h-1zM31 18h1v1h-1zM0 19h1v1h-1zM1 19h1v1h-1zM2 19h1v1h-1zM4 19h1v1h-1zM8 19h1v1h-1zM11 19h1v1h-1zM12 19h1v1h-1zM13 19h1v1h-1zM14 19h1v1h-1zM15 19h1v1h-1zM16 19h1v1h-1zM19 19h1v1h-1zM20 19h1v1h-1zM21 19h1v1h-1zM25 19h1v1h-1zM28 19h1v1h-1zM31 19h1v1h-1zM32 19h1v1h-1zM3 20h1v1h-1zM6 20h1v1h-1zM8 20h1v1h-1zM11 20h1v1h-1zM12 20h1v1h-1zM13 20h1v1h-1zM14 20h1v1h-1zM15 20h1v1h-1zM18 20h1v1h-1zM19 20h1v1h-1zM20 20h1v1h-1zM24 20h1v1h-1zM27 20h1v1h-1zM29 20h1v1h-1zM30 20h1v1h-1zM0 21h1v1h-1zM1 21h1v1h-1zM2 21h1v1h-1zM3 21h1v1h-1zM8 21h1v1h-1zM9 21h1v1h-1zM12 21h1v1h-1zM15 21h1v1h-1zM17 21h1v1h-1zM18 21h1v1h-1zM21 21h1v1h-1zM23 21h1v1h-1zM26 21h1v1h-1zM29 21h1v1h-1zM30 21h1v1h-1zM32 21h1v1h-1zM6 22h1v1h-1zM7 22h1v1h-1zM8 22h1v1h-1zM9 22h1v1h-1zM11 22h1v1h-1zM12 22h1v1h-1zM13 22h1v1h-1zM14 22h1v1h-1zM16 22h1v1h-1zM17 22h1v1h-1zM21 22h1v1h-1zM22 22h1v1h-1zM23 22h1v1h-1zM27 22h1v1h-1zM29 22h1v1h-1zM30 22h1v1h-1zM31 22h1v1h-1zM32 22h1v1h-1zM1 23h1v1h-1zM2 23h1v1h-1zM3 23h1v1h-1zM5 23h1v1h-1zM8 23h1v1h-1zM12 23h1v1h-1zM13 23h1v1h-1zM16 23h1v1h-1zM19 23h1v1h-1zM23 23h1v1h-1zM24 23h1v1h-1zM25 23h1v1h-1zM26 23h1v1h-1zM27 23h1v1h-1zM28 23h1v1h-1zM29 23h1v1h-1zM31 23h1v1h-1zM0 24h1v1h-1zM3 24h1v1h-1zM4 24h1v1h-1zM6 24h1v1h-1zM7 24h1v1h-1zM8 24h1v1h-1zM13 24h1v1h-1zM15 24h1v1h-1zM17 24h1v1h-1zM20 24h1v1h-1zM22 24h1v1h-1zM23 24h1v1h-1zM24 24h1v1h-1zM25 24h1v1h-1zM26 24h1v1h-1zM27 24h1v1h-1zM28 24h1v1h-1zM31 24h1v1h-1zM32 24h1v1h-1zM8 25h1v1h-1zM10 25h1v1h-1zM11 25h1v1h-1zM12 25h1v1h-1zM15 25h1v1h-1zM17 25h1v1h-1zM18 25h1v1h-1zM19 25h1v1h-1zM24 25h1v1h-1zM28 25h1v1h-1zM29 25h1v1h-1zM0 26h1v1h-1zM1 26h1v1h-1zM2 26h1v1h-1zM3 26h1v1h-1zM4 26h1v1h-1zM5 26h1v1h-1zM6 26h1v1h-1zM8 26h1v1h-1zM9 26h1v1h-1zM10 26h1v1h-1zM13 26h1v1h-1zM16 26h1v1h-1zM19 26h1v1h-1zM20 26h1v1h-1zM22 26h1v1h-1zM23 26h1v1h-1zM24 26h1v1h-1zM26 26h1v1h-1zM28 26h1v1h-1zM0 27h1v1h-1zM6 27h1v1h-1zM8 27h1v1h-1zM9 27h1v1h-1zM12 27h1v1h-1zM13 27h1v1h-1zM14 27h1v1h-1zM20 27h1v1h-1zM21 27h1v1h-1zM22 27h1v1h-1zM23 27h1v1h-1zM24 27h1v1h-1zM28 27h1v1h-1zM29 27h1v1h-1zM30 27h1v1h-1zM0 28h1v1h-1zM2 28h1v1h-1zM3 28h1v1h-1zM4 28h1v1h-1zM6 28h1v1h-1zM9 28h1v1h-1zM11 28h1v1h-1zM14 28h1v1h-1zM17 28h1v1h-1zM20 28h1v1h-1zM23 28h1v1h-1zM24 28h1v1h-1zM25 28h1v1h-1zM26 28h1v1h-1zM27 28h1v1h-1zM28 28h1v1h-1zM30 28h1v1h-1zM0 29h1v1h-1zM2 29h1v1h-1zM3 29h1v1h-1zM4 29h1v1h-1zM6 29h1v1h-1zM8 29h1v1h-1zM9 29h1v1h-1zM12 29h1v1h-1zM14 29h1v1h-1zM18 29h1v1h-1zM19 29h1v1h-1zM20 29h1v1h-1zM21 29h1v1h-1zM23 29h1v1h-1zM24 29h1v1h-1zM27 29h1v1h-1zM29 29h1v1h-1zM30 29h1v1h-1zM31 29h1v1h-1zM32 29h1v1h-1zM0 30h1v1h-1zM2 30h1v1h-1zM3 30h1v1h-1zM4 30h1v1h-1zM6 30h1v1h-1zM8 30h1v1h-1zM9 30h1v1h-1zM11 30h1v1h-1zM12 30h1v1h-1zM13 30h1v1h-1zM14 30h1v1h-1zM19 30h1v1h-1zM21 30h1v1h-1zM22 30h1v1h-1zM23 30h1v1h-1zM26 30h1v1h-1zM27 30h1v1h-1zM30 30h1v1h-1zM0 31h1v1h-1zM6 31h1v1h-1zM9 31h1v1h-1zM13 31h1v1h-1zM14 31h1v1h-1zM15 31h1v1h-1zM16 31h1v1h-1zM17 31h1v1h-1zM18 31h1v1h-1zM19 31h1v1h-1zM23 31h1v1h-1zM24 31h1v1h-1zM25 31h1v1h-1zM27 31h1v1h-1zM28 31h1v1h-1zM32 31h1v1h-1zM0 32h1v1h-1zM1 32h1v1h-1zM2 32h1v1h-1zM3 32h1v1h-1zM4 32h1v1h-1zM5 32h1v1h-1zM6 32h1v1h-1zM8 32h1v1h-1zM12 32h1v1h-1zM14 32h1v1h-1zM15 32h1v1h-1zM16 32h1v1h-1zM17 32h1v1h-1zM18 32h1v1h-1zM21 32h1v1h-1zM23 32h1v1h-1zM26 32h1v1h-1zM28 32h1v1h-1zM30 32h1v1h-1z"/></svg></div>
+    <div>
+      <span class="kicker">Share</span>
+      <h3 id="share-title">Open this page on your phone</h3>
+      <p class="muted">Scan the code, or follow the link.</p>
+      <a href="https://josuakugler.github.io/hexaflexagons/">josuakugler.github.io/hexaflexagons</a>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+"use strict";
+
+/* ---------- Flexagon engine: a ring of n paper triangles ---------- */
+function Engine(n) {
+  var corners = function (i) { return [i % n, (i + 1) % n, (i + 2) % n]; };
+  var pt = function (p) { return p === "C" ? [0, 0] : [Math.cos(p * Math.PI / 3), Math.sin(p * Math.PI / 3)]; };
+  function ccw(a, b, c) { a = pt(a); b = pt(b); c = pt(c); return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) > 0; }
+  function frontUp(st, i) { var c = corners(i); return ccw(st.pos[c[0]], st.pos[c[1]], st.pos[c[2]]) === (i % 2 === 1); }
+  function sectorOf(pos, i) {
+    var v = corners(i).map(function (p) { return pos[p]; });
+    if (v.filter(function (x) { return x === "C"; }).length !== 1) return -1;
+    var o = v.filter(function (x) { return x !== "C"; }).sort(function (a, b) { return a - b; });
+    if (o[0] === 0 && o[1] === 5) return 5;
+    return o[1] - o[0] === 1 ? o[0] : -1;
+  }
+  function layerOK(st) {
+    var where = {};
+    st.stacks.forEach(function (s, k) { s.forEach(function (l, d) { where[l] = { k: k, d: d }; }); });
+    var byE = {};
+    for (var i = 0; i < n; i++) {
+      var j = (i + 1) % n;
+      var e = [String(st.pos[(i + 1) % n]), String(st.pos[(i + 2) % n])].sort().join("-");
+      (byE[e] = byE[e] || []).push([where[i], where[j]]);
+    }
+    var ints = function (h) { var m = {}; h.forEach(function (w) { (m[w.k] = m[w.k] || []).push(w.d); }); for (var k in m) m[k].sort(function (p, q) { return p - q; }); return m; };
+    for (var key in byE) {
+      var hs = byE[key];
+      for (var x = 0; x < hs.length; x++) for (var y = x + 1; y < hs.length; y++) {
+        var ia = ints(hs[x]), ib = ints(hs[y]);
+        for (var k in ia) {
+          if (!(k in ib)) continue;
+          var a = ia[k], b = ib[k];
+          if (a.length === 2 && b.length === 2) { if ((a[0] < b[0] && b[0] < a[1] && a[1] < b[1]) || (b[0] < a[0] && a[0] < b[1] && b[1] < a[1])) return false; }
+          else if (a.length === 2) { if (a[0] < b[0] && b[0] < a[1]) return false; }
+          else if (b.length === 2) { if (b[0] < a[0] && a[0] < b[1]) return false; }
+        }
+        var ka = Object.keys(ia), kb = Object.keys(ib);
+        if (ka.length === 2 && kb.length === 2 && ka.every(function (q) { return q in ib; })) {
+          if ((ia[ka[0]][0] < ib[ka[0]][0]) !== (ia[ka[1]][0] < ib[ka[1]][0])) return false;
+        }
+      }
+    }
+    return true;
+  }
+  // Pinch flex at the even corners V0, V2, V4. Returns the new state or null.
+  function flex(st) {
+    var fins = [0, 1, 2].map(function (k) { return st.stacks[2 * k].slice().reverse().concat(st.stacks[2 * k + 1]); });
+    var found = null;
+    (function rec(k, ps) {
+      if (found) return;
+      if (k === 3) { found = tryFlex(st, fins, ps); return; }
+      for (var p = 0; p < fins[k].length - 1 && !found; p++) rec(k + 1, ps.concat(p));
+    })(0, []);
+    return found;
+  }
+  function tryFlex(st, fins, ps) {
+    var pos = new Array(n), stacks = [];
+    for (var k = 0; k < 3; k++) {
+      var L = fins[k], A = L.slice(0, ps[k] + 1), B = L.slice(ps[k] + 1);
+      stacks[2 * k] = A.slice();
+      stacks[2 * k + 1] = B.slice().reverse();
+      var halves = [A, B];
+      for (var h = 0; h < 2; h++) for (var li = 0; li < halves[h].length; li++) {
+        var c = corners(halves[h][li]);
+        for (var ci = 0; ci < 3; ci++) {
+          var P = c[ci], o = st.pos[P], nn;
+          if (o === "C") nn = h === 0 ? 2 * k : (2 * k + 2) % 6;
+          else if (o % 2 === 0) nn = "C";
+          else nn = o;
+          if (pos[P] !== undefined && pos[P] !== nn) return null;
+          pos[P] = nn;
+        }
+      }
+    }
+    for (var s = 0; s < 6; s++) for (var q = 0; q < stacks[s].length; q++) if (sectorOf(pos, stacks[s][q]) !== s) return null;
+    var ns = { pos: pos, stacks: stacks };
+    return layerOK(ns) ? ns : null;
+  }
+  // Flexes written in Scott Sherman's pat notation (Explorable Flexagons, "New Flexes" and "Flex Compendium").
+  // Pat j of a pattern is sector (off - j) mod 6, and in a pair [x, y] the leaves of y lie on top of x.
+  // With these conventions the pinch flex in that notation reproduces flex() on every reachable state.
+  var V_FLEX = { inp: [1, [2, 3], [4, 5], 6, 7, [8, 9]], out: [[3, -1], -2, -5, [-6, 4], [9, -7], -8] };
+  // Every way to place the corners, given each leaf's sector and which side faces up.
+  function solvePos(stacks, up) {
+    var sec = [], out = [], pos = new Array(n);
+    stacks.forEach(function (s, k) { s.forEach(function (l) { sec[l] = k; }); });
+    (function rec(i) {
+      if (i === n) { out.push(pos.slice()); return; }
+      var s = sec[i], s1 = (s + 1) % 6, c = corners(i);
+      var perms = up[i] === (i % 2 === 1) ? [["C", s, s1], [s, s1, "C"], [s1, "C", s]] : [["C", s1, s], [s1, s, "C"], [s, "C", s1]];
+      for (var q = 0; q < 3; q++) {
+        var set = [], ok = true;
+        for (var ci = 0; ci < 3 && ok; ci++) {
+          if (pos[c[ci]] === undefined) { pos[c[ci]] = perms[q][ci]; set.push(c[ci]); }
+          else if (pos[c[ci]] !== perms[q][ci]) ok = false;
+        }
+        if (ok) rec(i + 1);
+        set.forEach(function (P) { pos[P] = undefined; });
+      }
+    })(0);
+    return out;
+  }
+  // Apply a flex given as before/after pats (one level of nesting). Returns the new state or null.
+  // If out is given, out.pieces receives the leaves (top to bottom, before the flex) of each pattern variable.
+  function patFlex(st, spec, off, out) {
+    var sOf = function (j) { return (off - j + 6) % 6; };
+    var up0 = [], split = [], found = null;
+    for (var i = 0; i < n; i++) up0[i] = frontUp(st, i);
+    for (var j = 0; j < 6; j++) if (Array.isArray(spec.inp[j])) { if (st.stacks[sOf(j)].length < 2) return null; split.push(j); }
+    (function rec(k, cuts) {
+      if (found) return;
+      if (k === split.length) { found = build(cuts); return; }
+      for (var p = 1; p < st.stacks[sOf(split[k])].length && !found; p++) { cuts[split[k]] = p; rec(k + 1, cuts); }
+    })(0, {});
+    return found;
+    function build(cuts) {
+      var piece = {}, up = up0.slice(), stacks = [];
+      for (var j = 0; j < 6; j++) {
+        var s = st.stacks[sOf(j)], pat = spec.inp[j];
+        if (!Array.isArray(pat)) { piece[pat] = s.slice(); continue; }
+        piece[pat[1]] = s.slice(0, cuts[j]);
+        piece[pat[0]] = s.slice(cuts[j]);
+      }
+      var get = function (v) {
+        var L = piece[Math.abs(v)].slice();
+        if (v < 0) { L.reverse(); L.forEach(function (l) { up[l] = !up0[l]; }); }
+        return L;
+      };
+      for (var j = 0; j < 6; j++) {
+        var pat = spec.out[j];
+        stacks[sOf(j)] = Array.isArray(pat) ? get(pat[1]).concat(get(pat[0])) : get(pat);
+      }
+      var all = solvePos(stacks, up);
+      for (var q = 0; q < all.length; q++) {
+        var ns = { pos: all[q], stacks: stacks }, ok = true;
+        for (var s = 0; s < 6 && ok; s++) for (var m = 0; m < stacks[s].length; m++) if (sectorOf(ns.pos, stacks[s][m]) !== s) { ok = false; break; }
+        if (ok && layerOK(ns)) { if (out) out.pieces = piece; return ns; }
+      }
+      return null;
+    }
+  }
+  // V-flex where the corners V_v and V_v+2 fold back together (the sectors either side of V_v, and sector v+2, need two leaves or more).
+  function vflex(st, v, out) { return patFlex(st, V_FLEX, (v + 1) % 6, out); }
+  function rot(st) {
+    var stacks = [];
+    for (var k = 0; k < 6; k++) stacks[(k + 1) % 6] = st.stacks[k].slice();
+    return { pos: st.pos.map(function (x) { return x === "C" ? "C" : (x + 1) % 6; }), stacks: stacks };
+  }
+  function flip(st) {
+    var stacks = [];
+    for (var k = 0; k < 6; k++) stacks[5 - k] = st.stacks[k].slice().reverse();
+    return { pos: st.pos.map(function (x) { return x === "C" ? "C" : (6 - x) % 6; }), stacks: stacks };
+  }
+  function rotN(st, m) { for (var i = 0; i < m; i++) st = rot(st); return st; }
+  // parity 0: pinch V0,V2,V4. parity 1: pinch V1,V3,V5.
+  function flexAt(st, par) { if (!par) return flex(st); var f = flex(rotN(st, 5)); return f ? rot(f) : null; }
+  function topSide(st, k) { var l = st.stacks[k][0]; return { leaf: l, side: l + (frontUp(st, l) ? "F" : "B") }; }
+  function botSide(st, k) { var s = st.stacks[k], l = s[s.length - 1]; return { leaf: l, side: l + (frontUp(st, l) ? "B" : "F") }; }
+  function centerP(st, leaf) { return corners(leaf).filter(function (p) { return st.pos[p] === "C"; })[0]; }
+  return { n: n, corners: corners, flex: flex, flexAt: flexAt, vflex: vflex, patFlex: patFlex, frontUp: frontUp, rot: rot, flip: flip, rotN: rotN,
+    topSide: topSide, botSide: botSide, centerP: centerP, key: function (st) { return JSON.stringify(st); } };
+}
+
+/* ---------- The two flexagons, as folded starting states ---------- */
+var MODELS = {
+  tri: {
+    name: "Trihexaflexagon", n: 9,
+    init: { pos: [0, 1, "C", 2, 3, "C", 4, 5, "C"], stacks: [[0, 8], [1], [3, 2], [4], [6, 5], [7]] }
+  },
+  hexa: {
+    name: "Hexahexaflexagon", n: 18,
+    init: { pos: [1, 0, "C", 1, 2, "C", 3, 2, "C", 3, 4, "C", 5, 4, "C", 5, 0, "C"],
+            stacks: [[0, 1, 16, 17], [3, 2], [6, 7, 4, 5], [9, 8], [12, 13, 10, 11], [15, 14]] }
+  }
+};
+var FACE_COLORS = ["#cf5236", "#2a8784", "#dea12f", "#4a5cbf", "#b4467b", "#679538"];
+
+// Explore every reachable state once, to number the faces and fix each face's reference picture.
+function analyze(model) {
+  var E = Engine(model.n);
+  model.E = E;
+  var seen = {}, q = [model.init], order = [];
+  seen[E.key(model.init)] = true;
+  var ref = {}, parent = {};
+  var find = function (x) { while (parent[x] !== undefined && parent[x] !== x) x = parent[x]; return x; };
+  var unite = function (a, b) { var ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
+  var pairs = [];
+  while (q.length) {
+    var s = q.shift();
+    order.push(s);
+    var tops = [], bots = [];
+    for (var k = 0; k < 6; k++) {
+      var t = E.topSide(s, k), b = E.botSide(s, k);
+      tops.push(t.side); bots.push(b.side);
+      if (!(t.side in ref)) ref[t.side] = E.centerP(s, t.leaf);
+      if (!(b.side in ref)) ref[b.side] = E.centerP(s, b.leaf);
+    }
+    tops.forEach(function (x) { unite(x, tops[0]); });
+    bots.forEach(function (x) { unite(x, bots[0]); });
+    pairs.push([tops[0], bots[0]]);
+    var nb = [E.flexAt(s, 0), E.flexAt(s, 1), E.rot(s), E.flip(s)];
+    nb.forEach(function (x) { if (x && !seen[E.key(x)]) { seen[E.key(x)] = true; q.push(x); } });
+  }
+  // Classes in order of first appearance.
+  var roots = [];
+  order.forEach(function (s) {
+    [E.topSide(s, 0).side, E.botSide(s, 0).side].forEach(function (x) { var r = find(x); if (roots.indexOf(r) < 0) roots.push(r); });
+  });
+  var adj = roots.map(function () { return {}; });
+  pairs.forEach(function (p) { var a = roots.indexOf(find(p[0])), b = roots.indexOf(find(p[1])); adj[a][b] = adj[b][a] = true; });
+  var deg = adj.map(function (o) { return Object.keys(o).length; });
+  // Number faces: the more sociable faces first, keeping first-appearance order.
+  var idx = roots.map(function (_, i) { return i; });
+  idx.sort(function (a, b) { return (deg[b] - deg[a]) || (a - b); });
+  var faceOfRoot = {};
+  idx.forEach(function (ri, num) { faceOfRoot[roots[ri]] = num + 1; });
+  var faceOf = {};
+  for (var leaf = 0; leaf < model.n; leaf++) ["F", "B"].forEach(function (c) { faceOf[leaf + c] = faceOfRoot[find(leaf + c)]; });
+  var edges = {};
+  pairs.forEach(function (p) { var a = faceOf[p[0]], b = faceOf[p[1]]; edges[Math.min(a, b) + "-" + Math.max(a, b)] = [Math.min(a, b), Math.max(a, b)]; });
+  var degree = {};
+  Object.values(edges).forEach(function (e) { degree[e[0]] = (degree[e[0]] || 0) + 1; degree[e[1]] = (degree[e[1]] || 0) + 1; });
+  model.faceOf = faceOf;
+  model.ref = ref;
+  model.faces = roots.length;
+  model.edges = Object.values(edges);
+  model.degree = degree;
+  model.states = order.length;
+  model.hasV = order.some(function (s) { for (var v = 0; v < 6; v++) if (E.vflex(s, v)) return true; return false; });
+}
+analyze(MODELS.tri);
+analyze(MODELS.hexa);
+
+/* ---------- V-flex motion: nine rigid pieces on nine hinge points ---------- */
+// The V-flex moves the pieces a..i (1..9) of its pattern as rigid triangles. Piece k spans the hinge points
+// V_TRI[k] (X1..X9). V_BEFORE and V_AFTER give where each point lies, as a corner counted from v, or the centre.
+var V_TRI = { 1: [3, 1, 4], 2: [2, 9, 1], 3: [2, 3, 1], 4: [6, 8, 2], 5: [8, 2, 9], 6: [7, 6, 8], 7: [6, 5, 7], 8: [4, 3, 5], 9: [5, 4, 6] };
+var V_BEFORE = [null, 1, 0, "C", 2, 3, "C", 4, 5, "C"];
+var V_AFTER = [null, 1, "C", 2, "C", 3, 4, "C", 5, 0];
+function vAt(x, v) { return x === "C" ? "C" : (x + v) % 6; }
+// Which corner of its piece each paper corner sits at, and the faces each piece shows. Null if the flex isn't possible.
+function vRig(model, st, v) {
+  var E = model.E, out = {}, next = E.vflex(st, v, out);
+  if (!next) return null;
+  var pieces = [];
+  for (var k = 1; k <= 9; k++) {
+    var leaves = out.pieces[k], vtx = {};
+    for (var li = 0; li < leaves.length; li++) {
+      var cs = E.corners(leaves[li]);
+      for (var ci = 0; ci < 3; ci++) {
+        var P = cs[ci], m = -1;
+        for (var q = 0; q < 3; q++) if (vAt(V_BEFORE[V_TRI[k][q]], v) === st.pos[P]) m = q;
+        if (m < 0 || vAt(V_AFTER[V_TRI[k][m]], v) !== next.pos[P]) return null;
+        vtx[P] = m;
+      }
+    }
+    var top = leaves[0], bot = leaves[leaves.length - 1];
+    var up = top + (E.frontUp(st, top) ? "F" : "B"), down = bot + (E.frontUp(st, bot) ? "B" : "F");
+    pieces.push({ k: k, leaves: leaves, up: up, down: down, upRef: vtx[model.ref[up]], downRef: vtx[model.ref[down]] });
+  }
+  return { next: next, pieces: pieces };
+}
+
+// The motion itself, for v = 0, as frames of the nine hinge points. Each step drives a few distances between points
+// while every piece edge stays length 1, then the result is turned to land exactly on the flat state after the flex.
+var V_STEPS = [
+  {
+    "title": "Fold opposite corners together",
+    "text": "Hold the flexagon at the marked corner and at the corner opposite it, and bring the two together. As they meet, each half of the hexagon curls into an open tetrahedron: three triangles around a hollow, with the hexagon's centre at the tetrahedron's corner. The two hollows share the edge that runs from the centre to the point where the corners meet. In this model the corners rise towards you."
+  },
+  {
+    "title": "Open it into a pyramid",
+    "bend": true,
+    "text": "Keep hold of the joined corners and open the flexagon at its centre. One tetrahedron stays as it is and becomes the pocket; the other opens: its two stacked pairs of leaves part like books, the single leaf f swings round onto the outside of d, and the square pyramid appears, its hollow facing you with four leaves of a hidden face as its walls. The model cannot do this with rigid triangles: while the two corners are held together the centre cannot come apart, because the point where the two books meet has nowhere to move to, so the leaves have to give a little as the pyramid opens. The model shows the two tetrahedra, then jumps to the pyramid."
+  },
+  {
+    "title": "Slide the front wall across",
+    "bend": true,
+    "text": "Pull the front wall of the pyramid out towards you while the pocket on the left collapses flat; as it does, a new pocket opens on the right, and the hollow now shows two leaves each of two other faces. This cannot be done with rigid triangles either: the three layers d, e and f, which lie flat on one another, have to change order, with d passing from the bottom of that stack to the top. The model jumps to the position after the move, which is the mirror image of the one before."
+  },
+  {
+    "title": "Close the pyramid",
+    "bend": true,
+    "text": "Fold the hollow shut by bringing its top and bottom rim corners together, so that the pocket folds onto the pyramid and the pocket's tip lands on the pyramid's apex. Those two corners, with the one already at the apex, become the new centre. Closing the hollow the other way, left corner to right, leads nowhere. What remains is the pair of tetrahedral hollows again, on the other side. This is step 2 run backwards in mirror image, so it needs the same give in the paper, and the model jumps to the result."
+  },
+  {
+    "title": "Open it from the other side",
+    "text": "Pull the two joined corners apart and let the hollows flatten out. The hexagon now has its centre where the apexes met, and the old centre has become two outer corners. Faces show in pieces, two leaves of one face and two of another on each side, which is the mixing the V-flex is known for. This is step 1 run backwards in mirror image, which is why a V-flex undone is a V-flex from the back."
+  }
+];
+// The motion, worked out offline as a path of the nine hinge points through rigid configurations (see flexagon_simulation_notes.md).
+var V_DATA = {"frames":[[[0.5000000000000001,0.8660254037844386,0.0],[1.0,0.0,0.0],[0.0,0.0,0.0],[-0.4999999999999998,0.8660254037844387,0.0],[-1.0,1.2246467991473532e-16,0.0],[0.0,0.0,0.0],[-0.5000000000000004,-0.8660254037844384,0.0],[0.5000000000000001,-0.8660254037844386,0.0],[0.0,0.0,0.0]],[[0.4999,0.8658,0.0275],[1.0,0.0001,-0.0004],[0.0001,0.0001,-0.0178],[-0.4998,0.866,-0.0004],[-0.9998,0.0,-0.0006],[0.0001,0.0002,-0.0178],[-0.4998,-0.8657,0.0278],[0.4999,-0.8658,-0.0006],[0.0001,0.0002,-0.0178]],[[0.4995,0.8651,0.03],[1.0002,0.0004,-0.0014],[0.0002,0.0003,-0.0181],[-0.4997,0.8664,-0.0014],[-0.9998,0.0003,-0.0014],[0.0002,0.0003,-0.0181],[-0.4991,-0.8644,0.0301],[0.5002,-0.8657,-0.0014],[0.0002,0.0003,-0.0181]],[[0.4987,0.8638,0.0405],[1.0004,0.0008,-0.0036],[0.0004,0.0007,-0.0222],[-0.4995,0.8668,-0.0035],[-0.9997,0.0008,-0.003],[0.0003,0.0006,-0.0222],[-0.4979,-0.8623,0.0399],[0.5006,-0.8654,-0.003],[0.0003,0.0006,-0.0222]],[[0.4976,0.8619,0.0629],[1.0005,0.0015,-0.0072],[0.0007,0.0013,-0.0321],[-0.499,0.8672,-0.0072],[-0.9992,0.0014,-0.0055],[0.0006,0.001,-0.0321],[-0.4962,-0.8594,0.061],[0.5008,-0.8647,-0.0055],[0.0006,0.001,-0.0321]],[[0.496,0.859,0.0904],[1.0002,0.0021,-0.0106],[0.001,0.0018,-0.0455],[-0.4983,0.8673,-0.0106],[-0.9984,0.0018,-0.0085],[0.0009,0.0016,-0.0455],[-0.494,-0.8557,0.0879],[0.5008,-0.8637,-0.0085],[0.0009,0.0016,-0.0455]],[[0.494,0.8556,0.1119],[1.0,0.0026,-0.0123],[0.0013,0.0022,-0.0569],[-0.4977,0.8673,-0.0123],[-0.9976,0.0022,-0.011],[0.0013,0.0022,-0.0569],[-0.4915,-0.8513,0.1099],[0.5007,-0.8628,-0.011],[0.0013,0.0022,-0.0569]],[[0.4916,0.8515,0.1307],[0.9998,0.0032,-0.0136],[0.0016,0.0028,-0.0669],[-0.4971,0.8674,-0.0136],[-0.9968,0.0026,-0.0133],[0.0016,0.0027,-0.0669],[-0.4886,-0.8463,0.129],[0.5007,-0.8619,-0.0133],[0.0016,0.0027,-0.0669]],[[0.489,0.8469,0.1492],[0.9995,0.0039,-0.015],[0.002,0.0035,-0.0766],[-0.4963,0.8676,-0.015],[-0.9959,0.0031,-0.0155],[0.002,0.0034,-0.0766],[-0.4852,-0.8405,0.1471],[0.5007,-0.8609,-0.0155],[0.002,0.0034,-0.0766]],[[0.4859,0.8417,0.1675],[0.9993,0.0048,-0.0164],[0.0025,0.0043,-0.0862],[-0.4954,0.8678,-0.0164],[-0.9948,0.0038,-0.0176],[0.0024,0.0042,-0.0861],[-0.4815,-0.8339,0.1646],[0.5007,-0.8596,-0.0176],[0.0024,0.0042,-0.0861]],[[0.4826,0.8358,0.1859],[0.9991,0.0058,-0.0178],[0.003,0.0053,-0.0957],[-0.4944,0.8682,-0.0177],[-0.9937,0.0046,-0.0197],[0.003,0.0051,-0.0957],[-0.4773,-0.8267,0.1816],[0.5008,-0.8582,-0.0198],[0.003,0.0051,-0.0957]],[[0.4789,0.8295,0.2041],[0.9989,0.0071,-0.019],[0.0037,0.0064,-0.1053],[-0.4933,0.8686,-0.019],[-0.9923,0.0055,-0.022],[0.0036,0.0062,-0.1052],[-0.4727,-0.8187,0.198],[0.501,-0.8566,-0.022],[0.0036,0.0062,-0.1052]],[[0.4749,0.8225,0.2224],[0.9987,0.0084,-0.0201],[0.0045,0.0077,-0.1148],[-0.492,0.8691,-0.0201],[-0.9908,0.0066,-0.0243],[0.0043,0.0075,-0.1146],[-0.4676,-0.81,0.214],[0.5012,-0.8548,-0.0243],[0.0043,0.0075,-0.1146]],[[0.4705,0.815,0.2405],[0.9986,0.01,-0.021],[0.0054,0.0093,-0.1242],[-0.4905,0.8698,-0.021],[-0.9892,0.0078,-0.0267],[0.0052,0.009,-0.1241],[-0.4622,-0.8006,0.2294],[0.5014,-0.8527,-0.0268],[0.0052,0.009,-0.1241]],[[0.4659,0.8069,0.2586],[0.9984,0.0118,-0.0217],[0.0064,0.011,-0.1336],[-0.4889,0.8705,-0.0217],[-0.9874,0.0091,-0.0292],[0.0062,0.0108,-0.1335],[-0.4564,-0.7906,0.2442],[0.5017,-0.8505,-0.0293],[0.0062,0.0108,-0.1335]],[[0.4609,0.7982,0.2766],[0.9983,0.0137,-0.0222],[0.0075,0.013,-0.143],[-0.4871,0.8714,-0.0222],[-0.9854,0.0106,-0.0319],[0.0073,0.0127,-0.1428],[-0.4503,-0.7799,0.2585],[0.502,-0.848,-0.0319],[0.0073,0.0127,-0.1428]],[[0.4555,0.789,0.2946],[0.9982,0.0158,-0.0225],[0.0088,0.0152,-0.1523],[-0.4852,0.8724,-0.0224],[-0.9832,0.0122,-0.0346],[0.0086,0.0149,-0.152],[-0.4438,-0.7687,0.2721],[0.5023,-0.8453,-0.0347],[0.0086,0.0149,-0.152]],[[0.4498,0.7792,0.3125],[0.9981,0.0182,-0.0225],[0.0102,0.0177,-0.1614],[-0.4832,0.8734,-0.0224],[-0.9809,0.014,-0.0374],[0.01,0.0173,-0.1612],[-0.437,-0.7569,0.2851],[0.5027,-0.8424,-0.0375],[0.01,0.0173,-0.1612]],[[0.4438,0.7687,0.3302],[0.998,0.0206,-0.0221],[0.0118,0.0204,-0.1705],[-0.481,0.8746,-0.0221],[-0.9785,0.0159,-0.0402],[0.0115,0.0199,-0.1702],[-0.4299,-0.7446,0.2976],[0.5031,-0.8394,-0.0403],[0.0115,0.0199,-0.1702]],[[0.4375,0.7577,0.3479],[0.998,0.0233,-0.0215],[0.0134,0.0233,-0.1794],[-0.4786,0.8759,-0.0214],[-0.9759,0.0178,-0.0431],[0.0132,0.0228,-0.1791],[-0.4226,-0.7319,0.3095],[0.5035,-0.8361,-0.0432],[0.0132,0.0228,-0.1791]],[[0.4308,0.7461,0.3653],[0.9979,0.026,-0.0205],[0.0152,0.0264,-0.1882],[-0.4762,0.8772,-0.0204],[-0.9731,0.0199,-0.046],[0.0149,0.0259,-0.1878],[-0.415,-0.7188,0.3208],[0.5039,-0.8327,-0.0461],[0.0149,0.0259,-0.1878]],[[0.4237,0.7339,0.3827],[0.9978,0.0289,-0.0191],[0.0172,0.0297,-0.1967],[-0.4736,0.8786,-0.019],[-0.9702,0.022,-0.0489],[0.0168,0.0291,-0.1963],[-0.4072,-0.7052,0.3317],[0.5043,-0.8292,-0.049],[0.0168,0.0291,-0.1963]],[[0.4163,0.7211,0.3998],[0.9977,0.0319,-0.0173],[0.0192,0.0332,-0.205],[-0.4709,0.88,-0.0172],[-0.9672,0.0242,-0.0517],[0.0188,0.0326,-0.2045],[-0.3992,-0.6913,0.3422],[0.5047,-0.8255,-0.0518],[0.0188,0.0326,-0.2045]],[[0.4086,0.7077,0.4167],[0.9976,0.035,-0.0151],[0.0213,0.0369,-0.213],[-0.4682,0.8814,-0.015],[-0.9641,0.0264,-0.0543],[0.0209,0.0362,-0.2125],[-0.391,-0.6772,0.3524],[0.505,-0.8217,-0.0544],[0.0209,0.0362,-0.2125]],[[0.4005,0.6937,0.4333],[0.9974,0.0381,-0.0125],[0.0235,0.0407,-0.2207],[-0.4654,0.8827,-0.0124],[-0.9609,0.0285,-0.0567],[0.0231,0.04,-0.2201],[-0.3826,-0.6628,0.3622],[0.5053,-0.8178,-0.0568],[0.0231,0.04,-0.2201]],[[0.3921,0.6791,0.4497],[0.9971,0.0412,-0.0095],[0.0258,0.0446,-0.228],[-0.4625,0.8841,-0.0093],[-0.9577,0.0307,-0.0589],[0.0253,0.0438,-0.2274],[-0.3742,-0.6481,0.3718],[0.5055,-0.814,-0.059],[0.0253,0.0438,-0.2274]],[[0.3833,0.6639,0.4657],[0.9967,0.0444,-0.0059],[0.0281,0.0486,-0.2349],[-0.4596,0.8853,-0.0058],[-0.9544,0.0327,-0.0608],[0.0276,0.0478,-0.2343],[-0.3656,-0.6333,0.3814],[0.5056,-0.8101,-0.0609],[0.0276,0.0478,-0.2343]],[[0.3743,0.6483,0.4814],[0.9963,0.0474,-0.002],[0.0304,0.0526,-0.2414],[-0.4567,0.8864,-0.0018],[-0.951,0.0346,-0.0623],[0.0299,0.0517,-0.2407],[-0.357,-0.6183,0.3908],[0.5056,-0.8062,-0.0624],[0.0299,0.0517,-0.2407]],[[0.3649,0.6321,0.4967],[0.9957,0.0504,0.0025],[0.0327,0.0566,-0.2474],[-0.4538,0.8874,0.0026],[-0.9477,0.0364,-0.0634],[0.0321,0.0556,-0.2468],[-0.3482,-0.6032,0.4003],[0.5055,-0.8024,-0.0635],[0.0321,0.0556,-0.2468]],[[0.3553,0.6154,0.5116],[0.9949,0.0533,0.0073],[0.0349,0.0605,-0.253],[-0.4509,0.8882,0.0075],[-0.9443,0.038,-0.064],[0.0343,0.0595,-0.2523],[-0.3395,-0.588,0.4098],[0.5052,-0.7988,-0.0641],[0.0343,0.0595,-0.2523]],[[0.3454,0.5983,0.526],[0.994,0.0561,0.0127],[0.0371,0.0643,-0.258],[-0.448,0.8888,0.0129],[-0.941,0.0393,-0.0641],[0.0365,0.0632,-0.2573],[-0.3307,-0.5727,0.4196],[0.5047,-0.7953,-0.0641],[0.0365,0.0632,-0.2573]],[[0.3353,0.5808,0.54],[0.9929,0.0587,0.0184],[0.0392,0.0679,-0.2625],[-0.4453,0.8891,0.0186],[-0.9378,0.0404,-0.0635],[0.0386,0.0668,-0.2617],[-0.3218,-0.5575,0.4295],[0.504,-0.7919,-0.0636],[0.0386,0.0668,-0.2617]],[[0.325,0.5629,0.5535],[0.9916,0.061,0.0246],[0.0411,0.0713,-0.2665],[-0.4426,0.8891,0.0248],[-0.9347,0.0411,-0.0624],[0.0405,0.0701,-0.2657],[-0.313,-0.5422,0.4397],[0.503,-0.7888,-0.0624],[0.0405,0.0701,-0.2657]],[[0.3145,0.5447,0.5665],[0.9901,0.0631,0.0311],[0.0429,0.0743,-0.2699],[-0.44,0.8889,0.0314],[-0.9316,0.0415,-0.0605],[0.0422,0.0732,-0.269],[-0.3042,-0.5269,0.4503],[0.5018,-0.786,-0.0605],[0.0422,0.0732,-0.269]],[[0.3038,0.5262,0.579],[0.9884,0.065,0.0381],[0.0445,0.0771,-0.2727],[-0.4375,0.8883,0.0383],[-0.9287,0.0415,-0.0579],[0.0438,0.0759,-0.2718],[-0.2954,-0.5116,0.4612],[0.5003,-0.7835,-0.0579],[0.0438,0.0759,-0.2718]],[[0.293,0.5075,0.591],[0.9865,0.0666,0.0453],[0.0459,0.0795,-0.2749],[-0.4351,0.8874,0.0456],[-0.9259,0.0411,-0.0546],[0.0451,0.0782,-0.2741],[-0.2866,-0.4964,0.4725],[0.4986,-0.7814,-0.0545],[0.0451,0.0782,-0.2741]],[[0.2821,0.4886,0.6025],[0.9842,0.0679,0.0528],[0.047,0.0814,-0.2766],[-0.4329,0.8861,0.0531],[-0.9233,0.0402,-0.0505],[0.0462,0.0801,-0.2758],[-0.2779,-0.4813,0.4842],[0.4965,-0.7796,-0.0504],[0.0462,0.0801,-0.2758]],[[0.2711,0.4696,0.6135],[0.9818,0.0689,0.0606],[0.0478,0.0828,-0.2778],[-0.4309,0.8845,0.0609],[-0.9209,0.0388,-0.0456],[0.0471,0.0815,-0.2769],[-0.2692,-0.4662,0.4962],[0.4941,-0.7782,-0.0455],[0.0471,0.0815,-0.2769]],[[0.2601,0.4505,0.624],[0.9791,0.0695,0.0686],[0.0484,0.0838,-0.2785],[-0.429,0.8824,0.0689],[-0.9186,0.0369,-0.0399],[0.0476,0.0824,-0.2776],[-0.2605,-0.4512,0.5087],[0.4913,-0.7772,-0.0398],[0.0476,0.0824,-0.2776]],[[0.249,0.4313,0.634],[0.9761,0.0698,0.0768],[0.0486,0.0841,-0.2786],[-0.4272,0.88,0.0771],[-0.9166,0.0345,-0.0334],[0.0478,0.0828,-0.2778],[-0.2519,-0.4363,0.5214],[0.4882,-0.7766,-0.0333],[0.0478,0.0828,-0.2778]],[[0.238,0.4122,0.6435],[0.9728,0.0698,0.0851],[0.0485,0.0839,-0.2783],[-0.4256,0.8771,0.0854],[-0.9148,0.0316,-0.0262],[0.0477,0.0826,-0.2775],[-0.2434,-0.4215,0.5345],[0.4848,-0.7765,-0.0261],[0.0477,0.0826,-0.2775]],[[0.227,0.3932,0.6526],[0.9693,0.0694,0.0935],[0.048,0.0832,-0.2776],[-0.4242,0.8739,0.0938],[-0.9132,0.0282,-0.0182],[0.0472,0.0818,-0.2767],[-0.2349,-0.4068,0.5479],[0.481,-0.7769,-0.0181],[0.0472,0.0818,-0.2767]],[[0.216,0.3742,0.6613],[0.9656,0.0687,0.1019],[0.0472,0.0817,-0.2765],[-0.423,0.8703,0.1022],[-0.9118,0.0242,-0.0096],[0.0464,0.0804,-0.2756],[-0.2265,-0.3923,0.5614],[0.4769,-0.7777,-0.0094],[0.0464,0.0804,-0.2756]],[[0.2052,0.3554,0.6695],[0.9616,0.0676,0.1103],[0.046,0.0797,-0.275],[-0.4219,0.8663,0.1106],[-0.9106,0.0198,-0.0002],[0.0452,0.0784,-0.2741],[-0.2181,-0.3778,0.5751],[0.4724,-0.7789,-0.0],[0.0452,0.0784,-0.2741]],[[0.1944,0.3367,0.6773],[0.9573,0.0663,0.1187],[0.0445,0.0771,-0.2732],[-0.421,0.8619,0.119],[-0.9096,0.0148,0.0097],[0.0437,0.0757,-0.2724],[-0.2099,-0.3635,0.5888],[0.4677,-0.7805,0.01],[0.0437,0.0757,-0.2724]],[[0.1837,0.3182,0.6847],[0.9529,0.0646,0.1269],[0.0426,0.0738,-0.2711],[-0.4202,0.8572,0.1272],[-0.9088,0.0094,0.0203],[0.0419,0.0725,-0.2703],[-0.2017,-0.3493,0.6024],[0.4626,-0.7826,0.0205],[0.0419,0.0725,-0.2703]],[[0.1732,0.2999,0.6918],[0.9482,0.0627,0.1351],[0.0404,0.07,-0.2688],[-0.4196,0.8522,0.1353],[-0.9082,0.0036,0.0313],[0.0397,0.0687,-0.268],[-0.1936,-0.3352,0.616],[0.4573,-0.785,0.0316],[0.0397,0.0687,-0.268]],[[0.1628,0.2819,0.6984],[0.9434,0.0604,0.143],[0.0379,0.0656,-0.2664],[-0.4191,0.8469,0.1433],[-0.9078,-0.0026,0.0428],[0.0372,0.0644,-0.2656],[-0.1855,-0.3214,0.6293],[0.4517,-0.7877,0.0431],[0.0372,0.0644,-0.2656]],[[0.1525,0.2641,0.7048],[0.9384,0.058,0.1508],[0.0351,0.0607,-0.2637],[-0.4188,0.8414,0.151],[-0.9075,-0.0092,0.0547],[0.0343,0.0595,-0.263],[-0.1776,-0.3076,0.6424],[0.4459,-0.7908,0.055],[0.0343,0.0595,-0.263]],[[0.1424,0.2467,0.7108],[0.9332,0.0553,0.1583],[0.0319,0.0553,-0.261],[-0.4185,0.8356,0.1586],[-0.9074,-0.016,0.0668],[0.0312,0.0541,-0.2603],[-0.1698,-0.2941,0.6551],[0.4398,-0.7941,0.0672],[0.0312,0.0541,-0.2603]],[[0.1325,0.2295,0.7165],[0.9279,0.0524,0.1656],[0.0286,0.0495,-0.2582],[-0.4184,0.8295,0.1658],[-0.9073,-0.0232,0.0792],[0.0279,0.0483,-0.2575],[-0.1621,-0.2808,0.6674],[0.4336,-0.7976,0.0796],[0.0279,0.0483,-0.2575]],[[0.1228,0.2126,0.722],[0.9225,0.0494,0.1726],[0.0249,0.0432,-0.2553],[-0.4183,0.8234,0.1728],[-0.9074,-0.0305,0.0917],[0.0243,0.0421,-0.2547],[-0.1545,-0.2677,0.6791],[0.4273,-0.8014,0.0921],[0.0243,0.0421,-0.2547]],[[0.1132,0.1961,0.7271],[0.917,0.0462,0.1794],[0.0212,0.0366,-0.2525],[-0.4184,0.817,0.1795],[-0.9075,-0.0381,0.1043],[0.0205,0.0356,-0.2519],[-0.1471,-0.2548,0.6903],[0.4208,-0.8053,0.1047],[0.0205,0.0356,-0.2519]],[[0.1039,0.1799,0.7319],[0.9115,0.0429,0.1858],[0.0172,0.0298,-0.2497],[-0.4185,0.8106,0.186],[-0.9077,-0.0457,0.1169],[0.0166,0.0288,-0.2491],[-0.1398,-0.2422,0.7008],[0.4143,-0.8093,0.1172],[0.0166,0.0288,-0.2491]],[[0.0947,0.1641,0.7364],[0.906,0.0395,0.1919],[0.0131,0.0227,-0.247],[-0.4187,0.8041,0.1921],[-0.9079,-0.0534,0.1294],[0.0126,0.0217,-0.2464],[-0.1327,-0.2299,0.7106],[0.4077,-0.8133,0.1297],[0.0126,0.0217,-0.2464]],[[0.0858,0.1486,0.7406],[0.9004,0.0361,0.1977],[0.0089,0.0155,-0.2443],[-0.4189,0.7976,0.1978],[-0.9081,-0.0612,0.1417],[0.0084,0.0146,-0.2438],[-0.1258,-0.2179,0.7197],[0.4011,-0.8174,0.142],[0.0084,0.0146,-0.2438]],[[0.0771,0.1336,0.7446],[0.8949,0.0326,0.2032],[0.0047,0.0082,-0.2418],[-0.4192,0.7911,0.2033],[-0.9084,-0.0689,0.1537],[0.0042,0.0073,-0.2413],[-0.1191,-0.2062,0.7281],[0.3946,-0.8215,0.1541],[0.0042,0.0073,-0.2413]],[[0.0687,0.119,0.7482],[0.8895,0.0291,0.2084],[0.0005,0.0009,-0.2395],[-0.4195,0.7847,0.2085],[-0.9086,-0.0765,0.1655],[0.0,0.0001,-0.239],[-0.1125,-0.1949,0.7357],[0.3881,-0.8255,0.1658],[0.0,0.0001,-0.239]],[[0.0605,0.1048,0.7516],[0.8841,0.0257,0.2132],[-0.0037,-0.0064,-0.2372],[-0.4198,0.7783,0.2133],[-0.9087,-0.084,0.1768],[-0.0041,-0.0071,-0.2368],[-0.1062,-0.184,0.7425],[0.3816,-0.8294,0.1771],[-0.0041,-0.0071,-0.2368]],[[0.0526,0.0911,0.7547],[0.8788,0.0223,0.2178],[-0.0078,-0.0135,-0.2352],[-0.4201,0.7721,0.2179],[-0.9089,-0.0914,0.1877],[-0.0082,-0.0142,-0.2348],[-0.1001,-0.1734,0.7486],[0.3753,-0.8331,0.188],[-0.0082,-0.0142,-0.2348]],[[0.0449,0.0778,0.7575],[0.8737,0.0189,0.2221],[-0.0118,-0.0205,-0.2334],[-0.4205,0.766,0.2221],[-0.9089,-0.0986,0.1981],[-0.0122,-0.0211,-0.233],[-0.0943,-0.1633,0.7539],[0.3691,-0.8368,0.1984],[-0.0122,-0.0211,-0.233]],[[0.0376,0.0651,0.7601],[0.8688,0.0157,0.226],[-0.0157,-0.0272,-0.2317],[-0.4208,0.7601,0.2261],[-0.9089,-0.1056,0.208],[-0.016,-0.0278,-0.2314],[-0.0886,-0.1535,0.7585],[0.363,-0.8402,0.2083],[-0.016,-0.0278,-0.2314]],[[0.0305,0.0528,0.7624],[0.8641,0.0126,0.2297],[-0.0194,-0.0336,-0.2303],[-0.4212,0.7545,0.2298],[-0.9088,-0.1123,0.2173],[-0.0197,-0.0341,-0.23],[-0.0833,-0.1442,0.7624],[0.3572,-0.8435,0.2176],[-0.0197,-0.0341,-0.23]],[[0.0238,0.0412,0.7644],[0.8596,0.0096,0.2332],[-0.0229,-0.0396,-0.229],[-0.4215,0.7491,0.2332],[-0.9086,-0.1187,0.226],[-0.0231,-0.0401,-0.2288],[-0.0781,-0.1353,0.7657],[0.3515,-0.8465,0.2262],[-0.0231,-0.0401,-0.2288]],[[0.0174,0.0301,0.7661],[0.8553,0.0067,0.2364],[-0.0261,-0.0453,-0.228],[-0.4219,0.744,0.2364],[-0.9083,-0.1248,0.234],[-0.0264,-0.0457,-0.2278],[-0.0732,-0.1268,0.7684],[0.346,-0.8493,0.2343],[-0.0264,-0.0457,-0.2278]],[[0.0113,0.0196,0.7676],[0.8513,0.0041,0.2394],[-0.0291,-0.0504,-0.2272],[-0.4222,0.7392,0.2394],[-0.9078,-0.1306,0.2414],[-0.0293,-0.0508,-0.227],[-0.0686,-0.1188,0.7705],[0.3408,-0.8518,0.2416],[-0.0293,-0.0508,-0.227]],[[0.0057,0.0098,0.7689],[0.8476,0.0016,0.2421],[-0.0318,-0.0551,-0.2265],[-0.4225,0.7348,0.2421],[-0.9073,-0.1361,0.2482],[-0.032,-0.0555,-0.2264],[-0.0642,-0.1112,0.7721],[0.3358,-0.854,0.2483],[-0.032,-0.0555,-0.2264]],[[0.0004,0.0006,0.7699],[0.8442,-0.0007,0.2446],[-0.0343,-0.0593,-0.2261],[-0.4228,0.7307,0.2446],[-0.9067,-0.1411,0.2542],[-0.0344,-0.0596,-0.226],[-0.0601,-0.104,0.7733],[0.3312,-0.856,0.2544],[-0.0344,-0.0596,-0.226]],[[-0.0046,-0.0079,0.7707],[0.8412,-0.0027,0.2469],[-0.0364,-0.063,-0.2258],[-0.423,0.727,0.247],[-0.906,-0.1458,0.2597],[-0.0365,-0.0633,-0.2257],[-0.0562,-0.0973,0.7741],[0.3268,-0.8577,0.2598],[-0.0365,-0.0633,-0.2257]],[[-0.0091,-0.0157,0.7714],[0.8384,-0.0045,0.2491],[-0.0382,-0.0662,-0.2257],[-0.4232,0.7237,0.2491],[-0.9052,-0.15,0.2644],[-0.0384,-0.0664,-0.2256],[-0.0526,-0.0911,0.7745],[0.3227,-0.8591,0.2646],[-0.0384,-0.0664,-0.2256]],[[-0.0132,-0.0228,0.7718],[0.8359,-0.0061,0.251],[-0.0398,-0.0689,-0.2257],[-0.4233,0.7208,0.251],[-0.9044,-0.1538,0.2686],[-0.0399,-0.0691,-0.2257],[-0.0492,-0.0853,0.7746],[0.3191,-0.8603,0.2687],[-0.0399,-0.0691,-0.2257]],[[-0.0169,-0.0293,0.7721],[0.8337,-0.0074,0.2527],[-0.0411,-0.0712,-0.2259],[-0.4233,0.7183,0.2527],[-0.9036,-0.1571,0.2722],[-0.0412,-0.0713,-0.2258],[-0.0462,-0.0799,0.7745],[0.3158,-0.8612,0.2722],[-0.0412,-0.0713,-0.2258]],[[-0.0202,-0.035,0.7722],[0.8319,-0.0084,0.2542],[-0.0421,-0.073,-0.2261],[-0.4232,0.7162,0.2542],[-0.9027,-0.1599,0.2752],[-0.0422,-0.0731,-0.2261],[-0.0434,-0.0751,0.7743],[0.3129,-0.8618,0.2752],[-0.0422,-0.0731,-0.2261]],[[-0.0231,-0.04,0.7722],[0.8303,-0.0091,0.2555],[-0.0429,-0.0744,-0.2264],[-0.423,0.7145,0.2555],[-0.9018,-0.1623,0.2777],[-0.043,-0.0744,-0.2264],[-0.0409,-0.0708,0.7739],[0.3104,-0.8622,0.2777],[-0.043,-0.0744,-0.2264]],[[-0.0256,-0.0443,0.7721],[0.829,-0.0096,0.2567],[-0.0435,-0.0754,-0.2268],[-0.4228,0.7131,0.2567],[-0.901,-0.1642,0.2796],[-0.0436,-0.0755,-0.2268],[-0.0386,-0.0669,0.7734],[0.3084,-0.8625,0.2797],[-0.0436,-0.0755,-0.2268]],[[-0.0277,-0.0479,0.772],[0.8279,-0.0098,0.2576],[-0.044,-0.0761,-0.2272],[-0.4224,0.712,0.2576],[-0.9003,-0.1656,0.2812],[-0.044,-0.0762,-0.2272],[-0.0368,-0.0637,0.7729],[0.3067,-0.8625,0.2812],[-0.044,-0.0762,-0.2272]],[[-0.0294,-0.0509,0.7718],[0.827,-0.0099,0.2584],[-0.0442,-0.0766,-0.2275],[-0.4221,0.7113,0.2584],[-0.8997,-0.1667,0.2823],[-0.0442,-0.0766,-0.2275],[-0.0352,-0.061,0.7724],[0.3055,-0.8625,0.2824],[-0.0442,-0.0766,-0.2275]],[[-0.0307,-0.0531,0.7716],[0.8264,-0.0098,0.259],[-0.0444,-0.0769,-0.2279],[-0.4217,0.7108,0.259],[-0.8991,-0.1674,0.2832],[-0.0444,-0.0769,-0.2279],[-0.034,-0.0588,0.772],[0.3046,-0.8624,0.2832],[-0.0444,-0.0769,-0.2279]],[[-0.0316,-0.0548,0.7715],[0.826,-0.0096,0.2594],[-0.0445,-0.077,-0.2282],[-0.4213,0.7105,0.2594],[-0.8987,-0.1678,0.2837],[-0.0445,-0.077,-0.2282],[-0.0331,-0.0573,0.7716],[0.3041,-0.8622,0.2837],[-0.0445,-0.077,-0.2282]],[[-0.0322,-0.0557,0.7713],[0.8257,-0.0095,0.2597],[-0.0445,-0.0771,-0.2283],[-0.4211,0.7103,0.2597],[-0.8985,-0.168,0.2839],[-0.0445,-0.0771,-0.2283],[-0.0325,-0.0564,0.7714],[0.3038,-0.8621,0.2839],[-0.0445,-0.0771,-0.2283]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[-0.0324,-0.056,0.7713],[0.8256,-0.0094,0.2597],[-0.0445,-0.0771,-0.2284],[-0.421,0.7103,0.2597],[-0.8984,-0.168,0.284],[-0.0445,-0.0771,-0.2284],[-0.0324,-0.056,0.7713],[0.3037,-0.862,0.284],[-0.0445,-0.0771,-0.2284]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.3601,0.616,0.0153],[0.1803,-0.2848,0.4106],[-0.3296,0.0189,-0.3942],[-0.6101,0.8446,0.0951],[-0.7899,-0.0562,0.4904],[-0.3296,0.0189,-0.3942],[0.1803,-0.2848,0.4106],[0.3151,-0.7419,-0.4686],[1.018,-0.1263,-0.1121]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.4436,0.656,-0.4904],[0.1485,0.2949,0.3942],[-0.4264,0.9507,-0.0951],[0.1485,0.2949,0.3942],[-0.7135,-0.0038,-0.0153],[0.1565,-0.2986,-0.4106],[-0.3996,-0.9447,0.1121],[0.4849,-0.6438,0.4686],[0.1565,-0.2986,-0.4106]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.694,-0.284],[0.089,-0.0,0.2284],[-0.4047,0.7197,-0.2597],[0.089,-0.0,0.2284],[0.0647,-0.0,-0.7713],[-0.4047,-0.7197,-0.2597],[0.089,-0.0,0.2284],[0.5947,-0.694,-0.284],[0.0647,-0.0,-0.7713]],[[0.5947,0.6941,-0.2839],[0.089,-0.0,0.2283],[-0.4046,0.7198,-0.2597],[0.089,-0.0,0.2283],[0.0643,-0.0,-0.7713],[-0.4046,-0.7198,-0.2597],[0.089,-0.0,0.2283],[0.5947,-0.6941,-0.2839],[0.0651,-0.0,-0.7714]],[[0.5947,0.6944,-0.2837],[0.0889,-0.0,0.2282],[-0.4046,0.7201,-0.2594],[0.0889,-0.0,0.2282],[0.0632,-0.0,-0.7715],[-0.4046,-0.7201,-0.2594],[0.0889,-0.0,0.2282],[0.5947,-0.6944,-0.2837],[0.0662,-0.0,-0.7716]],[[0.5945,0.695,-0.2832],[0.0888,-0.0,0.2279],[-0.4047,0.7206,-0.259],[0.0888,-0.0,0.2279],[0.0614,-0.0,-0.7716],[-0.4047,-0.7206,-0.259],[0.0888,-0.0,0.2279],[0.5945,-0.695,-0.2832],[0.0679,-0.0,-0.772]],[[0.5942,0.6958,-0.2823],[0.0885,-0.0,0.2275],[-0.405,0.7212,-0.2584],[0.0885,-0.0,0.2275],[0.0587,-0.0,-0.7718],[-0.405,-0.7212,-0.2584],[0.0885,-0.0,0.2275],[0.5942,-0.6958,-0.2824],[0.0704,-0.0,-0.7724]],[[0.5936,0.6969,-0.2812],[0.088,-0.0,0.2272],[-0.4054,0.7219,-0.2576],[0.0879,-0.0,0.2272],[0.0553,-0.0,-0.772],[-0.4054,-0.7219,-0.2576],[0.088,-0.0,0.2272],[0.5936,-0.6969,-0.2812],[0.0735,-0.0,-0.7729]],[[0.5927,0.6982,-0.2796],[0.0871,-0.0,0.2268],[-0.4062,0.7227,-0.2567],[0.0871,-0.0,0.2268],[0.0511,-0.0,-0.7721],[-0.4062,-0.7227,-0.2567],[0.0871,-0.0,0.2268],[0.5927,-0.6983,-0.2797],[0.0773,-0.0,-0.7734]],[[0.5915,0.6999,-0.2777],[0.086,-0.0,0.2264],[-0.4072,0.7236,-0.2555],[0.0859,-0.0,0.2264],[0.0462,-0.0,-0.7722],[-0.4073,-0.7236,-0.2555],[0.086,-0.0,0.2264],[0.5915,-0.6999,-0.2777],[0.0817,-0.0,-0.7739]],[[0.5898,0.7018,-0.2752],[0.0844,-0.0,0.2261],[-0.4087,0.7246,-0.2542],[0.0843,-0.0,0.2261],[0.0404,-0.0,-0.7722],[-0.4087,-0.7246,-0.2542],[0.0844,-0.0,0.2261],[0.5899,-0.7019,-0.2752],[0.0867,-0.0,-0.7743]],[[0.5878,0.704,-0.2722],[0.0823,-0.0,0.2258],[-0.4105,0.7257,-0.2527],[0.0822,-0.0,0.2259],[0.0338,-0.0,-0.7721],[-0.4105,-0.7257,-0.2527],[0.0823,-0.0,0.2258],[0.5879,-0.704,-0.2722],[0.0923,-0.0,-0.7745]],[[0.5854,0.7064,-0.2686],[0.0798,-0.0,0.2257],[-0.4126,0.727,-0.251],[0.0796,-0.0,0.2257],[0.0264,-0.0,-0.7718],[-0.4127,-0.727,-0.251],[0.0798,-0.0,0.2257],[0.5855,-0.7065,-0.2687],[0.0985,-0.0,-0.7746]],[[0.5825,0.709,-0.2644],[0.0767,-0.0,0.2256],[-0.4152,0.7283,-0.2491],[0.0765,-0.0,0.2257],[0.0181,-0.0,-0.7714],[-0.4153,-0.7283,-0.2491],[0.0767,-0.0,0.2256],[0.5827,-0.7091,-0.2646],[0.1052,-0.0,-0.7745]],[[0.5792,0.7118,-0.2597],[0.0731,-0.0,0.2257],[-0.4181,0.7298,-0.247],[0.0728,0.0,0.2258],[0.0091,-0.0,-0.7707],[-0.4182,-0.7298,-0.2469],[0.0731,-0.0,0.2257],[0.5794,-0.7119,-0.2598],[0.1124,-0.0,-0.7741]],[[0.5756,0.7147,-0.2542],[0.0688,-0.0,0.226],[-0.4214,0.7315,-0.2446],[0.0685,-0.0,0.2261],[-0.0007,0.0,-0.7699],[-0.4215,-0.7315,-0.2446],[0.0688,-0.0,0.226],[0.5758,-0.7148,-0.2544],[0.1201,-0.0,-0.7733]],[[0.5715,0.7177,-0.2482],[0.064,-0.0,0.2264],[-0.4251,0.7333,-0.2421],[0.0637,-0.0,0.2265],[-0.0113,0.0,-0.7689],[-0.4252,-0.7333,-0.2421],[0.064,-0.0,0.2264],[0.5717,-0.7179,-0.2483],[0.1284,-0.0,-0.7721]],[[0.5671,0.7209,-0.2414],[0.0587,-0.0,0.227],[-0.4291,0.7352,-0.2394],[0.0582,-0.0,0.2272],[-0.0227,0.0,-0.7676],[-0.4292,-0.7353,-0.2394],[0.0587,-0.0,0.227],[0.5673,-0.721,-0.2416],[0.1372,-0.0,-0.7705]],[[0.5622,0.7241,-0.234],[0.0527,-0.0,0.2278],[-0.4334,0.7373,-0.2364],[0.0523,0.0,0.228],[-0.0348,0.0,-0.7661],[-0.4335,-0.7374,-0.2364],[0.0527,-0.0,0.2278],[0.5625,-0.7243,-0.2343],[0.1465,-0.0,-0.7684]],[[0.5571,0.7275,-0.226],[0.0463,-0.0,0.2288],[-0.4379,0.7396,-0.2332],[0.0458,0.0,0.229],[-0.0476,0.0,-0.7644],[-0.4381,-0.7396,-0.2332],[0.0463,-0.0,0.2288],[0.5573,-0.7277,-0.2262],[0.1562,-0.0,-0.7657]],[[0.5516,0.7309,-0.2173],[0.0394,-0.0,0.23],[-0.4428,0.742,-0.2298],[0.0388,-0.0,0.2303],[-0.061,0.0,-0.7624],[-0.4429,-0.742,-0.2297],[0.0394,-0.0,0.23],[0.5519,-0.7311,-0.2176],[0.1665,-0.0,-0.7624]],[[0.5459,0.7343,-0.208],[0.0321,-0.0,0.2314],[-0.4478,0.7445,-0.2261],[0.0314,-0.0,0.2317],[-0.0751,0.0,-0.7601],[-0.448,-0.7446,-0.226],[0.0321,-0.0,0.2314],[0.5461,-0.7345,-0.2083],[0.1773,-0.0,-0.7585]],[[0.5399,0.7378,-0.1981],[0.0244,-0.0,0.233],[-0.4531,0.7471,-0.2221],[0.0237,-0.0,0.2334],[-0.0898,0.0,-0.7575],[-0.4533,-0.7472,-0.2221],[0.0244,-0.0,0.233],[0.5401,-0.738,-0.1984],[0.1885,-0.0,-0.7539]],[[0.5336,0.7414,-0.1877],[0.0164,-0.0,0.2348],[-0.4585,0.7499,-0.2179],[0.0156,-0.0,0.2352],[-0.1052,0.0,-0.7547],[-0.4587,-0.75,-0.2178],[0.0164,-0.0,0.2348],[0.5339,-0.7416,-0.188],[0.2002,-0.0,-0.7486]],[[0.5272,0.745,-0.1768],[0.0082,-0.0,0.2368],[-0.4641,0.7527,-0.2133],[0.0074,-0.0,0.2372],[-0.121,0.0,-0.7516],[-0.4643,-0.7528,-0.2132],[0.0082,-0.0,0.2368],[0.5274,-0.7452,-0.1771],[0.2124,-0.0,-0.7425]],[[0.5205,0.7486,-0.1655],[-0.0001,0.0,0.239],[-0.4698,0.7556,-0.2085],[-0.001,0.0,0.2395],[-0.1374,0.0,-0.7482],[-0.47,-0.7557,-0.2084],[-0.0001,0.0,0.239],[0.5208,-0.7488,-0.1658],[0.2251,-0.0,-0.7357]],[[0.5138,0.7522,-0.1537],[-0.0085,0.0,0.2413],[-0.4755,0.7586,-0.2033],[-0.0094,0.0,0.2418],[-0.1543,0.0,-0.7446],[-0.4757,-0.7587,-0.2032],[-0.0085,0.0,0.2413],[0.5141,-0.7524,-0.1541],[0.2381,-0.0,-0.7281]],[[0.507,0.7559,-0.1417],[-0.0168,0.0,0.2438],[-0.4813,0.7616,-0.1978],[-0.0179,0.0,0.2443],[-0.1716,0.0,-0.7406],[-0.4815,-0.7618,-0.1977],[-0.0168,0.0,0.2438],[0.5073,-0.7561,-0.142],[0.2516,-0.0,-0.7197]],[[0.5002,0.7596,-0.1294],[-0.0251,0.0,0.2464],[-0.4871,0.7646,-0.1921],[-0.0262,0.0,0.247],[-0.1895,0.0,-0.7364],[-0.4872,-0.7648,-0.1919],[-0.0251,0.0,0.2464],[0.5005,-0.7598,-0.1297],[0.2655,-0.0,-0.7106]],[[0.4934,0.7632,-0.1169],[-0.0332,0.0,0.2491],[-0.4928,0.7677,-0.186],[-0.0344,0.0,0.2497],[-0.2077,0.0,-0.7319],[-0.4929,-0.7679,-0.1858],[-0.0332,0.0,0.2491],[0.4937,-0.7634,-0.1172],[0.2797,-0.0,-0.7008]],[[0.4867,0.7669,-0.1043],[-0.0411,0.0,0.2519],[-0.4984,0.7708,-0.1795],[-0.0423,0.0,0.2525],[-0.2264,0.0,-0.7271],[-0.4985,-0.7711,-0.1794],[-0.0411,0.0,0.2519],[0.487,-0.7671,-0.1047],[0.2942,-0.0,-0.6903]],[[0.4801,0.7705,-0.0917],[-0.0486,0.0,0.2547],[-0.5039,0.774,-0.1728],[-0.0499,0.0,0.2553],[-0.2455,0.0,-0.722],[-0.504,-0.7742,-0.1726],[-0.0486,0.0,0.2547],[0.4804,-0.7707,-0.0921],[0.3091,-0.0,-0.6791]],[[0.4737,0.7742,-0.0792],[-0.0558,0.0,0.2575],[-0.5092,0.7771,-0.1658],[-0.0571,0.0,0.2582],[-0.265,0.0,-0.7165],[-0.5094,-0.7774,-0.1656],[-0.0558,0.0,0.2575],[0.474,-0.7744,-0.0796],[0.3242,-0.0,-0.6674]],[[0.4676,0.7778,-0.0668],[-0.0625,0.0,0.2603],[-0.5144,0.7802,-0.1586],[-0.0639,0.0,0.261],[-0.2848,0.0,-0.7108],[-0.5145,-0.7805,-0.1583],[-0.0625,0.0,0.2603],[0.4678,-0.7779,-0.0672],[0.3396,-0.0,-0.6551]],[[0.4617,0.7813,-0.0547],[-0.0687,0.0,0.263],[-0.5193,0.7833,-0.151],[-0.0701,0.0,0.2637],[-0.305,0.0,-0.7048],[-0.5194,-0.7836,-0.1508],[-0.0687,0.0,0.263],[0.4619,-0.7815,-0.055],[0.3552,-0.0,-0.6424]],[[0.4561,0.7849,-0.0428],[-0.0743,0.0,0.2656],[-0.5239,0.7864,-0.1433],[-0.0758,0.0,0.2664],[-0.3255,0.0,-0.6984],[-0.524,-0.7868,-0.143],[-0.0743,0.0,0.2656],[0.4563,-0.785,-0.0431],[0.3711,-0.0,-0.6293]],[[0.451,0.7884,-0.0313],[-0.0793,0.0,0.268],[-0.5283,0.7895,-0.1353],[-0.0808,0.0,0.2688],[-0.3463,0.0,-0.6918],[-0.5284,-0.7899,-0.1351],[-0.0793,0.0,0.268],[0.4512,-0.7885,-0.0316],[0.3871,-0.0,-0.616]],[[0.4462,0.7918,-0.0203],[-0.0837,0.0,0.2703],[-0.5323,0.7925,-0.1272],[-0.0853,0.0,0.2711],[-0.3674,0.0,-0.6847],[-0.5324,-0.7929,-0.1269],[-0.0837,0.0,0.2703],[0.4464,-0.7919,-0.0205],[0.4033,-0.0,-0.6024]],[[0.442,0.7952,-0.0097],[-0.0875,0.0,0.2724],[-0.536,0.7956,-0.119],[-0.089,0.0,0.2732],[-0.3888,0.0,-0.6773],[-0.536,-0.7959,-0.1187],[-0.0875,0.0,0.2724],[0.4421,-0.7953,-0.01],[0.4197,-0.0,-0.5888]],[[0.4382,0.7985,0.0002],[-0.0905,0.0,0.2741],[-0.5393,0.7985,-0.1106],[-0.0921,0.0,0.275],[-0.4103,0.0,-0.6695],[-0.5393,-0.7989,-0.1103],[-0.0905,0.0,0.2741],[0.4383,-0.7986,0.0],[0.4363,-0.0,-0.5751]],[[0.4349,0.8017,0.0096],[-0.0928,0.0,0.2756],[-0.5422,0.8015,-0.1022],[-0.0944,0.0,0.2765],[-0.4321,0.0,-0.6613],[-0.5422,-0.8019,-0.1019],[-0.0928,0.0,0.2756],[0.435,-0.8018,0.0094],[0.4529,-0.0,-0.5614]],[[0.4322,0.8049,0.0182],[-0.0944,0.0,0.2767],[-0.5447,0.8043,-0.0938],[-0.096,0.0,0.2776],[-0.454,0.0,-0.6526],[-0.5447,-0.8048,-0.0935],[-0.0944,0.0,0.2767],[0.4323,-0.805,0.0181],[0.4698,-0.0,-0.5479]],[[0.43,0.808,0.0262],[-0.0954,0.0,0.2775],[-0.5468,0.8072,-0.0854],[-0.0969,0.0,0.2783],[-0.476,0.0,-0.6435],[-0.5468,-0.8076,-0.0851],[-0.0954,0.0,0.2775],[0.4301,-0.8081,0.0261],[0.4867,-0.0,-0.5345]],[[0.4284,0.8111,0.0334],[-0.0956,0.0,0.2778],[-0.5485,0.81,-0.0771],[-0.0972,0.0,0.2786],[-0.4981,0.0,-0.634],[-0.5485,-0.8104,-0.0768],[-0.0956,0.0,0.2778],[0.4285,-0.8111,0.0333],[0.5038,-0.0,-0.5214]],[[0.4274,0.814,0.0399],[-0.0952,0.0,0.2776],[-0.5497,0.8127,-0.0689],[-0.0967,0.0,0.2785],[-0.5202,0.0,-0.624],[-0.5497,-0.8131,-0.0686],[-0.0952,0.0,0.2776],[0.4274,-0.8141,0.0398],[0.521,-0.0,-0.5087]],[[0.4268,0.8169,0.0456],[-0.0941,0.0,0.2769],[-0.5505,0.8154,-0.0609],[-0.0957,0.0,0.2778],[-0.5422,0.0,-0.6135],[-0.5505,-0.8158,-0.0606],[-0.0941,0.0,0.2769],[0.4269,-0.817,0.0455],[0.5383,-0.0,-0.4962]],[[0.4269,0.8197,0.0505],[-0.0925,0.0,0.2758],[-0.5509,0.818,-0.0531],[-0.094,0.0,0.2766],[-0.5642,0.0,-0.6025],[-0.5509,-0.8184,-0.0528],[-0.0925,0.0,0.2758],[0.4269,-0.8197,0.0504],[0.5557,-0.0,-0.4842]],[[0.4274,0.8224,0.0546],[-0.0903,0.0,0.2741],[-0.551,0.8206,-0.0456],[-0.0918,0.0,0.2749],[-0.586,0.0,-0.591],[-0.5509,-0.821,-0.0453],[-0.0903,0.0,0.2741],[0.4274,-0.8225,0.0545],[0.5732,-0.0,-0.4725]],[[0.4284,0.825,0.0579],[-0.0876,0.0,0.2718],[-0.5506,0.823,-0.0383],[-0.089,0.0,0.2727],[-0.6076,0.0,-0.579],[-0.5505,-0.8235,-0.0381],[-0.0876,0.0,0.2718],[0.4284,-0.8251,0.0579],[0.5908,-0.0,-0.4612]],[[0.4299,0.8275,0.0605],[-0.0845,0.0,0.269],[-0.5498,0.8255,-0.0314],[-0.0858,0.0,0.2699],[-0.6289,0.0,-0.5665],[-0.5498,-0.8259,-0.0311],[-0.0845,0.0,0.269],[0.4298,-0.8276,0.0605],[0.6084,-0.0,-0.4503]],[[0.4317,0.83,0.0624],[-0.0809,0.0,0.2657],[-0.5487,0.8279,-0.0248],[-0.0823,0.0,0.2665],[-0.6499,0.0,-0.5535],[-0.5487,-0.8283,-0.0246],[-0.0809,0.0,0.2657],[0.4316,-0.8301,0.0624],[0.626,-0.0,-0.4397]],[[0.4339,0.8324,0.0635],[-0.0771,0.0,0.2617],[-0.5473,0.8302,-0.0186],[-0.0784,0.0,0.2625],[-0.6706,0.0,-0.54],[-0.5473,-0.8306,-0.0184],[-0.0771,0.0,0.2617],[0.4339,-0.8324,0.0636],[0.6437,-0.0,-0.4295]],[[0.4365,0.8346,0.0641],[-0.073,0.0,0.2573],[-0.5457,0.8324,-0.0129],[-0.0742,0.0,0.258],[-0.6908,0.0,-0.526],[-0.5456,-0.8328,-0.0127],[-0.073,0.0,0.2573],[0.4364,-0.8347,0.0641],[0.6613,-0.0,-0.4196]],[[0.4393,0.8368,0.064],[-0.0687,0.0,0.2523],[-0.5437,0.8346,-0.0075],[-0.0699,0.0,0.253],[-0.7106,0.0,-0.5116],[-0.5437,-0.835,-0.0073],[-0.0687,0.0,0.2523],[0.4392,-0.8369,0.0641],[0.679,-0.0,-0.4098]],[[0.4423,0.8389,0.0634],[-0.0642,0.0,0.2468],[-0.5416,0.8367,-0.0026],[-0.0654,0.0,0.2474],[-0.7299,0.0,-0.4967],[-0.5415,-0.837,-0.0025],[-0.0642,0.0,0.2468],[0.4422,-0.839,0.0635],[0.6965,-0.0,-0.4003]],[[0.4455,0.8409,0.0623],[-0.0597,0.0,0.2407],[-0.5393,0.8387,0.0018],[-0.0608,0.0,0.2414],[-0.7486,0.0,-0.4814],[-0.5392,-0.8391,0.002],[-0.0597,0.0,0.2407],[0.4454,-0.841,0.0624],[0.7139,-0.0,-0.3908]],[[0.4489,0.8429,0.0608],[-0.0552,0.0,0.2343],[-0.5369,0.8407,0.0058],[-0.0561,0.0,0.2349],[-0.7667,0.0,-0.4657],[-0.5368,-0.841,0.0059],[-0.0552,0.0,0.2343],[0.4487,-0.8429,0.0609],[0.7312,-0.0,-0.3814]],[[0.4523,0.8447,0.0589],[-0.0506,0.0,0.2274],[-0.5344,0.8426,0.0093],[-0.0516,0.0,0.228],[-0.7841,0.0,-0.4497],[-0.5343,-0.8429,0.0095],[-0.0506,0.0,0.2274],[0.4522,-0.8448,0.059],[0.7484,-0.0,-0.3718]],[[0.4558,0.8465,0.0567],[-0.0462,0.0,0.2201],[-0.5318,0.8444,0.0124],[-0.047,0.0,0.2207],[-0.801,0.0,-0.4333],[-0.5317,-0.8447,0.0125],[-0.0462,0.0,0.2201],[0.4556,-0.8465,0.0568],[0.7653,-0.0,-0.3622]],[[0.4592,0.8482,0.0543],[-0.0418,0.0,0.2125],[-0.5292,0.8461,0.015],[-0.0426,0.0,0.213],[-0.8171,0.0,-0.4167],[-0.5291,-0.8464,0.0151],[-0.0418,0.0,0.2125],[0.4591,-0.8482,0.0544],[0.7819,-0.0,-0.3524]],[[0.4627,0.8497,0.0517],[-0.0376,0.0,0.2045],[-0.5266,0.8478,0.0172],[-0.0384,0.0,0.205],[-0.8326,0.0,-0.3998],[-0.5265,-0.8481,0.0173],[-0.0376,0.0,0.2045],[0.4625,-0.8498,0.0518],[0.7983,-0.0,-0.3422]],[[0.466,0.8513,0.0489],[-0.0336,0.0,0.1963],[-0.524,0.8494,0.019],[-0.0343,0.0,0.1967],[-0.8474,0.0,-0.3827],[-0.524,-0.8497,0.0191],[-0.0336,0.0,0.1963],[0.4659,-0.8513,0.049],[0.8143,-0.0,-0.3317]],[[0.4693,0.8527,0.046],[-0.0299,0.0,0.1878],[-0.5216,0.851,0.0204],[-0.0305,0.0,0.1882],[-0.8615,0.0,-0.3653],[-0.5215,-0.8512,0.0205],[-0.0299,0.0,0.1878],[0.4692,-0.8527,0.0461],[0.8299,-0.0,-0.3208]],[[0.4725,0.854,0.0431],[-0.0263,0.0,0.1791],[-0.5192,0.8524,0.0214],[-0.0269,0.0,0.1794],[-0.8749,0.0,-0.3479],[-0.5191,-0.8526,0.0215],[-0.0263,0.0,0.1791],[0.4724,-0.8541,0.0432],[0.8451,-0.0,-0.3095]],[[0.4755,0.8553,0.0402],[-0.023,0.0,0.1702],[-0.517,0.8538,0.0221],[-0.0235,0.0,0.1705],[-0.8877,0.0,-0.3302],[-0.5169,-0.854,0.0221],[-0.023,0.0,0.1702],[0.4754,-0.8554,0.0403],[0.8598,-0.0,-0.2976]],[[0.4783,0.8565,0.0374],[-0.02,0.0,0.1612],[-0.5148,0.8551,0.0224],[-0.0204,0.0,0.1614],[-0.8997,0.0,-0.3125],[-0.5148,-0.8553,0.0225],[-0.02,0.0,0.1612],[0.4782,-0.8565,0.0375],[0.874,-0.0,-0.2851]],[[0.481,0.8576,0.0346],[-0.0172,0.0,0.152],[-0.5129,0.8564,0.0224],[-0.0176,0.0,0.1523],[-0.911,0.0,-0.2946],[-0.5128,-0.8565,0.0225],[-0.0172,0.0,0.152],[0.4809,-0.8577,0.0347],[0.8876,-0.0,-0.2721]],[[0.4835,0.8587,0.0319],[-0.0147,0.0,0.1428],[-0.5111,0.8576,0.0222],[-0.015,0.0,0.143],[-0.9217,0.0,-0.2766],[-0.511,-0.8577,0.0222],[-0.0147,0.0,0.1428],[0.4834,-0.8587,0.0319],[0.9006,-0.0,-0.2585]],[[0.4858,0.8596,0.0292],[-0.0124,0.0,0.1335],[-0.5094,0.8586,0.0217],[-0.0127,0.0,0.1336],[-0.9317,0.0,-0.2586],[-0.5094,-0.8588,0.0217],[-0.0124,0.0,0.1335],[0.4857,-0.8597,0.0293],[0.9128,-0.0,-0.2442]],[[0.4879,0.8605,0.0267],[-0.0104,0.0,0.1241],[-0.508,0.8597,0.021],[-0.0107,0.0,0.1242],[-0.9411,0.0,-0.2405],[-0.508,-0.8598,0.021],[-0.0104,0.0,0.1241],[0.4878,-0.8606,0.0268],[0.9244,-0.0,-0.2294]],[[0.4897,0.8614,0.0243],[-0.0087,0.0,0.1146],[-0.5067,0.8606,0.0201],[-0.0089,0.0,0.1148],[-0.9497,0.0,-0.2224],[-0.5067,-0.8607,0.0201],[-0.0087,0.0,0.1146],[0.4897,-0.8614,0.0243],[0.9353,-0.0,-0.214]],[[0.4914,0.8621,0.022],[-0.0072,0.0,0.1052],[-0.5056,0.8615,0.019],[-0.0074,0.0,0.1053],[-0.9578,0.0,-0.2041],[-0.5056,-0.8616,0.019],[-0.0072,0.0,0.1052],[0.4913,-0.8622,0.022],[0.9453,-0.0,-0.198]],[[0.4929,0.8628,0.0197],[-0.0059,0.0,0.0957],[-0.5046,0.8623,0.0177],[-0.0061,0.0,0.0957],[-0.9651,0.0,-0.1859],[-0.5046,-0.8623,0.0178],[-0.0059,0.0,0.0957],[0.4928,-0.8628,0.0198],[0.9545,-0.0,-0.1816]],[[0.4941,0.8635,0.0176],[-0.0048,0.0,0.0861],[-0.5038,0.863,0.0164],[-0.0049,0.0,0.0862],[-0.9719,0.0,-0.1675],[-0.5038,-0.863,0.0164],[-0.0048,0.0,0.0861],[0.4941,-0.8635,0.0176],[0.9629,-0.0,-0.1646]],[[0.4952,0.864,0.0155],[-0.0039,0.0,0.0766],[-0.5032,0.8636,0.015],[-0.004,0.0,0.0766],[-0.9779,0.0,-0.1492],[-0.5032,-0.8637,0.015],[-0.0039,0.0,0.0766],[0.4952,-0.864,0.0155],[0.9705,-0.0,-0.1471]],[[0.4961,0.8645,0.0133],[-0.0032,0.0,0.0669],[-0.5027,0.8642,0.0136],[-0.0032,0.0,0.0669],[-0.9833,0.0,-0.1307],[-0.5027,-0.8642,0.0136],[-0.0032,0.0,0.0669],[0.4961,-0.8645,0.0133],[0.9772,-0.0,-0.129]],[[0.4969,0.865,0.011],[-0.0025,0.0,0.0569],[-0.5023,0.8647,0.0123],[-0.0026,0.0,0.0569],[-0.9879,0.0,-0.1119],[-0.5022,-0.8647,0.0123],[-0.0025,0.0,0.0569],[0.4969,-0.865,0.011],[0.983,-0.0,-0.1099]],[[0.4976,0.8655,0.0085],[-0.0019,0.0,0.0455],[-0.5019,0.8652,0.0106],[-0.002,0.0,0.0455],[-0.9919,0.0,-0.0904],[-0.5019,-0.8652,0.0106],[-0.0019,0.0,0.0455],[0.4976,-0.8656,0.0085],[0.988,-0.0,-0.0879]],[[0.4984,0.8661,0.0055],[-0.0012,0.0,0.0321],[-0.5015,0.8658,0.0072],[-0.0015,0.0,0.0321],[-0.9952,0.0,-0.0629],[-0.5015,-0.8657,0.0072],[-0.0012,0.0,0.0321],[0.4984,-0.8661,0.0055],[0.9923,-0.0,-0.061]],[[0.4991,0.8662,0.003],[-0.0007,0.0,0.0222],[-0.501,0.866,0.0035],[-0.0009,0.0,0.0222],[-0.9975,0.0,-0.0405],[-0.5009,-0.866,0.0036],[-0.0007,0.0,0.0222],[0.4992,-0.8662,0.003],[0.9957,-0.0,-0.0399]],[[0.4996,0.866,0.0014],[-0.0004,0.0,0.0181],[-0.5004,0.866,0.0014],[-0.0004,0.0,0.0181],[-0.9989,0.0,-0.03],[-0.5004,-0.866,0.0014],[-0.0004,0.0,0.0181],[0.4996,-0.8661,0.0014],[0.9982,-0.0,-0.0301]],[[0.4999,0.8659,0.0006],[-0.0002,0.0,0.0178],[-0.5001,0.8659,0.0004],[-0.0001,0.0,0.0178],[-0.9998,0.0,-0.0275],[-0.5001,-0.8659,0.0004],[-0.0002,0.0,0.0178],[0.4999,-0.8659,0.0006],[0.9996,-0.0,-0.0278]],[[0.5000000000000003,0.8660254037844384,0.0],[-0.0,0.0,0.0],[-0.49999999999999967,0.8660254037844385,0.0],[-0.0,0.0,0.0],[-0.9999999999999999,1.1102230246251565e-16,0.0],[-0.5000000000000004,-0.8660254037844384,-0.0],[-0.0,0.0,0.0],[0.49999999999999944,-0.8660254037844388,-0.0],[0.9999999999999999,2.220446049250313e-16,-0.0]]],"marks":[0,80,116,152,188,268],"flatFrom":266,"jumps":[99,135,171],"seeds":{"99":{"1-3":-1.0,"3-1":1.0,"4-6":1.0,"6-4":-1.0,"7-9":-1.0,"9-7":1.0,"7-8":-1.0,"8-7":1.0,"8-9":1.0,"9-8":-1.0,"5-1":1.0,"4-7":-1.0,"4-8":-1.0,"4-9":-1.0,"6-7":-1.0,"6-8":-1.0,"6-9":-1.0,"7-4":1.0,"7-6":1.0,"4-1":1.0,"6-1":1.0,"2-5":1.0,"3-4":-1.0,"3-6":-1.0,"4-3":1.0,"5-2":-1.0,"6-3":1.0,"8-4":1.0,"8-6":1.0,"9-4":1.0,"9-6":1.0},"135":{"3-2":-1.0,"2-3":1.0,"5-4":1.0,"4-5":-1.0,"9-8":-1.0,"8-9":1.0,"1-2":-1.0,"1-3":-1.0,"2-1":1.0,"3-1":1.0,"6-8":-1.0,"2-4":-1.0,"2-5":-1.0,"4-1":1.0,"4-2":1.0,"4-3":1.0,"5-1":1.0,"5-2":1.0,"5-3":1.0,"4-8":-1.0,"5-8":-1.0,"1-4":-1.0,"1-5":-1.0,"3-4":-1.0,"3-5":-1.0,"4-9":-1.0,"5-9":-1.0,"6-7":1.0,"7-6":-1.0,"9-4":1.0,"9-5":1.0},"171":{"1-2":-1.0,"1-3":-1.0,"1-8":-1.0,"2-1":1.0,"2-3":1.0,"2-8":-1.0,"3-1":1.0,"3-2":-1.0,"3-8":-1.0,"4-5":1.0,"4-6":1.0,"4-7":1.0,"4-9":1.0,"5-4":-1.0,"5-6":-1.0,"5-7":1.0,"5-9":1.0,"6-4":-1.0,"6-5":1.0,"6-7":1.0,"6-9":1.0,"7-4":-1.0,"7-5":1.0,"7-6":-1.0,"7-9":-1.0,"8-1":1.0,"8-2":-1.0,"8-3":1.0,"9-4":-1.0,"9-5":1.0,"9-6":-1.0,"9-7":1.0}}};
+var vPath = (function () {
+  var frames = V_DATA.frames.map(function (f) { return [null].concat(f.map(function (p) { return p.slice(); })); });
+  var marks = V_DATA.marks.slice();
+  var sub = function (a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; };
+  var add3 = function (a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; };
+  // Layering: pieces lying on top of each other keep the order they had when they came together.
+  // offs[f][k] is the small shift that keeps piece k off the pieces it lies on.
+  var nrm = function (X, k) {
+    var t = V_TRI[k], a = sub(X[t[1]], X[t[0]]), b = sub(X[t[2]], X[t[0]]);
+    var c = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], L = Math.hypot(c[0], c[1], c[2]) || 1;
+    return [c[0] / L, c[1] / L, c[2] / L];
+  };
+  var cen = function (X, k) { var t = V_TRI[k]; return [0, 1, 2].map(function (q) { return (X[t[0]][q] + X[t[1]][q] + X[t[2]][q]) / 3; }); };
+  // Before the flex: c over b, e over d, i over h (in each pair [x, y] of the pattern, y is on top).
+  var sgn = {};
+  [[3, 2], [5, 4], [9, 8]].forEach(function (p) {
+    sgn[p[0] + "-" + p[1]] = Math.sign(nrm(frames[0], p[1])[2]);
+    sgn[p[1] + "-" + p[0]] = -Math.sign(nrm(frames[0], p[0])[2]);
+  });
+  var offs = frames.map(function (X, fi) {
+    var o = {};
+    // After the move that is not simulated, the layer order is the mirror image of the order before it.
+    if (V_DATA.seeds[fi]) sgn = Object.assign({}, V_DATA.seeds[fi]);
+    for (var k = 1; k <= 9; k++) o[k] = [0, 0, 0];
+    for (var pass = 0; pass < 5; pass++) for (var k = 1; k <= 9; k++) {
+      for (var l = 1; l <= 9; l++) {
+        if (l === k) continue;
+        var key = k + "-" + l, nl = nrm(X, l), nk = nrm(X, k), d = sub(add3(cen(X, k), o[k]), add3(cen(X, l), o[l])), h = d[0] * nl[0] + d[1] * nl[1] + d[2] * nl[2];
+        var across = Math.sqrt(Math.max(0, d[0] * d[0] + d[1] * d[1] + d[2] * d[2] - h * h));
+        if (across > 0.35) continue;
+        if (Math.abs(h) >= 0.03) { sgn[key] = Math.sign(h); continue; }
+        // Close and over each other: keep at least a 0.012 gap on the side k was last seen on.
+        var sg = sgn[key], need = sg ? 0.012 - sg * h : 0;
+        if (need > 0 && Math.abs(nk[0] * nl[0] + nk[1] * nl[1] + nk[2] * nl[2]) > 0.9) for (var q = 0; q < 3; q++) o[k][q] += 0.5 * need * sg * nl[q];
+      }
+    }
+    return o;
+  });
+  // The last frames show the stacks the flex actually makes: a over c, d over f, g over i.
+  var flat = V_DATA.flatFrom;
+  [[1, 3], [4, 6], [7, 9]].forEach(function (p) {
+    for (var f = flat; f < offs.length; f++) { offs[f][p[0]] = [0, 0, 0.012]; offs[f][p[1]] = [0, 0, -0.012]; }
+  });
+  return { frames: frames, marks: marks, offs: offs, jumps: V_DATA.jumps };
+})();
+// For tests.html, which checks the engine and the V-flex motion against physical constraints.
+window.__flexagonTest = { MODELS: MODELS, vPath: vPath, vRig: vRig, V_TRI: V_TRI, V_BEFORE: V_BEFORE, V_AFTER: V_AFTER, V_STEPS: V_STEPS };
+
+/* ---------- Page state ---------- */
+var model = MODELS.tri;
+var state = model.init;
+var parity = 0;
+var kind = "pinch";
+var vpos = 0;
+var flexCount = 0;
+var vCount = 0;
+var seenFaces = {};
+var anim = null;
+var autoOn = false;
+var autoTimer = null;
+var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+var SPEED = reduceMotion ? 0.35 : 1;
+
+var $ = function (id) { return document.getElementById(id); };
+var msgEl = $("msg");
+var msgTimer = null;
+function say(text, ms) {
+  msgEl.textContent = text;
+  msgEl.hidden = false;
+  clearTimeout(msgTimer);
+  msgTimer = setTimeout(function () { msgEl.hidden = true; }, ms || 2600);
+}
+
+/* ---------- Status panel, face map, template ---------- */
+// faces: the face in each of the six sectors. below: draw as seen after turning over.
+function hexChip(svg, faces, below) {
+  var c = function (j) { var a = j * Math.PI / 3; return Math.cos(a).toFixed(3) + "," + ((below ? 1 : -1) * Math.sin(a)).toFixed(3); };
+  var out = "";
+  for (var k = 0; k < 6; k++) out += '<polygon points="0,0 ' + c(k) + " " + c(k + 1) + '" fill="' + FACE_COLORS[faces[k] - 1] + '" stroke="' + FACE_COLORS[faces[k] - 1] + '" stroke-width="0.02"/>';
+  if (uniq(faces).length === 1) out += '<circle r="0.62" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="0.09"/>';
+  svg.innerHTML = out;
+}
+function uniq(a) { return a.filter(function (x, i) { return a.indexOf(x) === i; }).sort(function (p, q) { return p - q; }); }
+function listFaces(fs) { return fs.length === 1 ? String(fs[0]) : fs.slice(0, -1).join(", ") + " & " + fs[fs.length - 1]; }
+function updatePanel() {
+  var E = model.E, tops = [], bots = [];
+  for (var k = 0; k < 6; k++) { tops.push(model.faceOf[E.topSide(state, k).side]); bots.push(model.faceOf[E.botSide(state, k).side]); }
+  var tu = uniq(tops), bu = uniq(bots);
+  tu.concat(bu).forEach(function (f) { seenFaces[f] = true; });
+  $("f-top").textContent = tu.length === 1 ? "Face " + tu[0] : "Mixed";
+  $("f-bot").textContent = bu.length === 1 ? "Face " + bu[0] : "Mixed";
+  $("f-top").nextElementSibling.textContent = tu.length === 1 ? "on top" : "on top: faces " + listFaces(tu);
+  $("f-bot").nextElementSibling.textContent = bu.length === 1 ? "underneath" : "underneath: faces " + listFaces(bu);
+  hexChip($("chip-top"), tops);
+  hexChip($("chip-bot"), bots, true);
+  $("s-flex").textContent = String(flexCount);
+  $("s-v").textContent = String(vCount);
+  $("s-seen").textContent = Object.keys(seenFaces).length + " of " + model.faces;
+  var centred = true;
+  for (var k = 0; k < 6; k++) {
+    var t = E.topSide(state, k);
+    if (state.pos[model.ref[t.side]] !== "C") centred = false;
+  }
+  $("s-pic").textContent = centred ? "centred" : "rearranged";
+  drawFaceMap(tu, bu);
+}
+function faceMapLayout() {
+  var pos = {}, F = model.faces;
+  var inner = [], outer = [];
+  for (var f = 1; f <= F; f++) ((model.degree[f] || 0) > 2 ? inner : outer).push(f);
+  if (!inner.length) {
+    outer.forEach(function (f, i) { var a = -Math.PI / 2 + i * 2 * Math.PI / outer.length; pos[f] = [78 * Math.cos(a), 78 * Math.sin(a)]; });
+    return pos;
+  }
+  inner.forEach(function (f, i) { var a = -Math.PI / 2 + i * 2 * Math.PI / inner.length; pos[f] = [44 * Math.cos(a), 44 * Math.sin(a)]; });
+  outer.forEach(function (f) {
+    var nbr = model.edges.filter(function (e) { return e[0] === f || e[1] === f; }).map(function (e) { return e[0] === f ? e[1] : e[0]; });
+    var x = 0, y = 0;
+    nbr.forEach(function (g) { x += pos[g][0]; y += pos[g][1]; });
+    var a = Math.atan2(y, x);
+    pos[f] = [100 * Math.cos(a), 100 * Math.sin(a)];
+  });
+  return pos;
+}
+// tops, bots: the faces showing on each side (more than one after a V-flex).
+function drawFaceMap(tops, bots) {
+  var svg = $("facemap"), P = faceMapLayout(), out = "";
+  var whole = tops.length === 1 && bots.length === 1, top = tops[0], bot = bots[0];
+  model.edges.forEach(function (e) {
+    var on = whole && (e[0] === Math.min(top, bot) && e[1] === Math.max(top, bot));
+    out += '<line class="edge' + (on ? " on" : "") + '" x1="' + P[e[0]][0] + '" y1="' + P[e[0]][1] + '" x2="' + P[e[1]][0] + '" y2="' + P[e[1]][1] + '"/>';
+  });
+  for (var f = 1; f <= model.faces; f++) {
+    var onTop = tops.indexOf(f) >= 0, onBot = bots.indexOf(f) >= 0;
+    var op = seenFaces[f] ? 1 : 0.35;
+    out += '<g opacity="' + op + '"><circle cx="' + P[f][0] + '" cy="' + P[f][1] + '" r="17" fill="' + FACE_COLORS[f - 1] + '"/>';
+    if (onTop || onBot) out += '<circle class="ring" cx="' + P[f][0] + '" cy="' + P[f][1] + '" r="22"' + (onBot && !onTop ? ' stroke-dasharray="4 3"' : "") + "/>";
+    out += '<text x="' + P[f][0] + '" y="' + (P[f][1] + 6) + '" text-anchor="middle">' + f + "</text></g>";
+  }
+  svg.innerHTML = out;
+}
+function drawNet() {
+  var n = model.n, s = 54, h = s * Math.sqrt(3) / 2;
+  var P = function (m) { return [m * s / 2, m % 2 === 0 ? h : 0]; };
+  var W = (n + 2) * s / 2, rowGap = 34;
+  var svg = $("net");
+  var totalH = 2 * h + rowGap + 40;
+  svg.setAttribute("viewBox", "-8 -22 " + (W + 16) + " " + (totalH + 6));
+  svg.setAttribute("width", Math.round(W + 16));
+  var out = "<defs>";
+  var body = "";
+  ["F", "B"].forEach(function (side, row) {
+    var y0 = row * (h + rowGap + 20);
+    var map = function (p) { var x = row === 0 ? p[0] : W - p[0]; return [x, p[1] + y0]; };
+    body += '<text class="cap" x="0" y="' + (y0 - 8) + '">' + (row === 0 ? "FRONT" : "BACK (as seen when the strip is turned over)") + "</text>";
+    for (var i = 0; i <= n; i++) {
+      var tri = [P(i), P(i + 1), P(i + 2)].map(map);
+      var d = tri.map(function (q) { return q[0].toFixed(1) + "," + q[1].toFixed(1); }).join(" ");
+      if (i === n) {
+        body += '<polygon points="' + d + '" fill="none" stroke="var(--muted)" stroke-dasharray="3 3"/>';
+        var gx = (tri[0][0] + tri[1][0] + tri[2][0]) / 3, gy = (tri[0][1] + tri[1][1] + tri[2][1]) / 3;
+        body += '<text class="glue" x="' + gx.toFixed(1) + '" y="' + (gy + 3).toFixed(1) + '" text-anchor="middle">glue</text>';
+        continue;
+      }
+      var sid = i + side, face = model.faceOf[sid];
+      var cid = "c" + row + "_" + i;
+      out += '<clipPath id="' + cid + '"><polygon points="' + d + '"/></clipPath>';
+      var rp = model.ref[sid], rc = map(P([i, i + 1, i + 2].filter(function (m) { return m % n === rp; })[0]));
+      body += '<polygon points="' + d + '" fill="' + FACE_COLORS[face - 1] + '" stroke="var(--panel)" stroke-width="1.5"/>';
+      body += '<g clip-path="url(#' + cid + ')"><circle cx="' + rc[0].toFixed(1) + '" cy="' + rc[1].toFixed(1) + '" r="' + (0.62 * s).toFixed(1) + '" fill="none" stroke="rgba(255,255,255,0.65)" stroke-width="4"/>' +
+              '<circle cx="' + rc[0].toFixed(1) + '" cy="' + rc[1].toFixed(1) + '" r="' + (0.16 * s).toFixed(1) + '" fill="rgba(0,0,0,0.2)"/></g>';
+      var cx = (tri[0][0] + tri[1][0] + tri[2][0]) / 3, cy = (tri[0][1] + tri[1][1] + tri[2][1]) / 3;
+      body += '<text class="tri-num" x="' + cx.toFixed(1) + '" y="' + (cy + 5).toFixed(1) + '" text-anchor="middle">' + face + "</text>";
+    }
+  });
+  out += "</defs>";
+  svg.innerHTML = out + body;
+  $("net-desc").textContent = "The " + model.name.toLowerCase() + " is a strip of " + n + " triangles plus a glue tab. Every triangle has a front and a back; these are the face numbers each side carries, worked out by the same simulation. The rings show where to draw a picture so it looks whole the first time that face appears.";
+}
+
+/* ---------- 3D view ---------- */
+var THREE = window.THREE;
+var stage = $("stage");
+if (!THREE) {
+  $("loading").textContent = "The 3D view needs the three.js library, which did not load. Check your connection and reload the page.";
+  updatePanel(); drawNet();
+  return;
+}
+$("loading").remove();
+
+var renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+stage.insertBefore(renderer.domElement, stage.firstChild);
+var scene = new THREE.Scene();
+var camera = new THREE.PerspectiveCamera(32, 1, 0.1, 50);
+camera.up.set(0, 0, 1);
+scene.add(new THREE.AmbientLight(0xffffff, 0.58));
+var sun = new THREE.DirectionalLight(0xffffff, 0.5);
+scene.add(sun);
+var root = new THREE.Group();
+scene.add(root);
+var view = { yaw: -Math.PI / 2, pitch: 1.05, dist: 4.5 };
+
+function makeTexture(face) {
+  var c = document.createElement("canvas");
+  c.width = c.height = 256;
+  var g = c.getContext("2d");
+  g.fillStyle = FACE_COLORS[face - 1];
+  g.fillRect(0, 0, 256, 256);
+  var A = [128, 17];
+  g.strokeStyle = "rgba(255,255,255,0.62)";
+  g.lineWidth = 14;
+  g.beginPath(); g.arc(A[0], A[1], 159, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = 5;
+  g.beginPath(); g.arc(A[0], A[1], 104, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = "rgba(0,0,0,0.2)";
+  g.beginPath(); g.arc(A[0], A[1], 42, 0, Math.PI * 2); g.fill();
+  g.font = "600 46px Georgia, serif";
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.lineWidth = 4; g.strokeStyle = "rgba(0,0,0,0.3)";
+  g.strokeText(String(face), 128, 172);
+  g.fillStyle = "#ffffff";
+  g.fillText(String(face), 128, 172);
+  var t = new THREE.CanvasTexture(c);
+  t.anisotropy = 4;
+  return t;
+}
+var materials = FACE_COLORS.map(function (_, i) {
+  return new THREE.MeshLambertMaterial({ map: makeTexture(i + 1), side: THREE.FrontSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
+});
+var UV = { A: [0.5, 0.933], B: [0, 0.067], C: [1, 0.067] };
+
+// Six sectors, each drawn as a top sheet and a bottom sheet plus an outline.
+var lineMat = new THREE.LineBasicMaterial({ color: 0x3b342a });
+var sectors = [];
+for (var k = 0; k < 6; k++) {
+  var mk = function () {
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(9), 3));
+    geo.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(6), 2));
+    var m = new THREE.Mesh(geo, materials[0]);
+    root.add(m);
+    return m;
+  };
+  var lg = new THREE.BufferGeometry();
+  lg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(18), 3));
+  var line = new THREE.LineSegments(lg, lineMat);
+  root.add(line);
+  sectors.push({ top: mk(), bot: mk(), line: line });
+}
+var markerGeo = new THREE.SphereGeometry(0.055, 16, 12);
+var markerOn = new THREE.MeshBasicMaterial({ color: 0xb5422a });
+var markerOff = new THREE.MeshBasicMaterial({ color: 0x8a8378, transparent: true, opacity: 0.55 });
+var markers = [];
+for (var j = 0; j < 6; j++) { var mm = new THREE.Mesh(markerGeo, markerOff); root.add(mm); markers.push(mm); }
+// The crease of the V-flex: the line from the centre to the corner between the two corners that meet.
+var axisLine = new THREE.Group();
+var dashGeo = new THREE.PlaneGeometry(0.1, 0.028);
+var dashMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
+for (var di = 0; di < 5; di++) { var dm = new THREE.Mesh(dashGeo, dashMat); dm.position.set(0.12 + di * 0.18, 0, 0.006); axisLine.add(dm); }
+axisLine.visible = false;
+root.add(axisLine);
+// The V-flex in motion: each of its nine pieces drawn as a top sheet, a bottom sheet and an outline.
+var vParts = [];
+for (var vk = 0; vk < 9; vk++) {
+  var vlg = new THREE.BufferGeometry();
+  vlg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(18), 3));
+  var vline = new THREE.LineSegments(vlg, lineMat);
+  root.add(vline);
+  vParts.push({ top: mk(), bot: mk(), line: vline });
+}
+// The two corners that meet, followed through the V-flex.
+var foldMarks = [0, 1].map(function () { var m = new THREE.Mesh(markerGeo, markerOn); m.scale.setScalar(1.3); m.visible = false; root.add(m); return m; });
+// Letters a to i on both sides of each piece, so the pieces can be matched with leaves of a paper flexagon.
+// d, e and f, the layers that have to slip past each other, are drawn in the accent colour.
+var V_NAMES = " abcdefghi", labelsOn = true;
+try { labelsOn = localStorage.getItem("vflexLabels") !== "off"; } catch (e) {}
+var labelMats = V_NAMES.split("").map(function (ch, k) {
+  if (!k) return null;
+  var c = document.createElement("canvas"); c.width = c.height = 64;
+  var g = c.getContext("2d");
+  g.fillStyle = k >= 4 && k <= 6 ? "#b5422a" : "#1f1d1a";
+  g.beginPath(); g.arc(32, 32, 28, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = "rgba(255,255,255,0.85)"; g.lineWidth = 3; g.stroke();
+  g.fillStyle = "#ffffff"; g.font = "600 36px Georgia, serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(ch, 32, 30);
+  return new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+});
+// Each letter is a small sticker lying flat on a face, so it sits on the paper instead of cutting into it.
+var labelGeo = new THREE.PlaneGeometry(0.21, 0.21);
+var vLabels = vParts.map(function () {
+  return [0, 1].map(function () { var m = new THREE.Mesh(labelGeo, labelMats[1]); m.visible = false; root.add(m); return m; });
+});
+var zAxis = new THREE.Vector3(0, 0, 1);
+function showVParts(on) {
+  vParts.forEach(function (p) { p.top.visible = p.bot.visible = p.line.visible = on; });
+  sectors.forEach(function (p) { p.top.visible = p.bot.visible = p.line.visible = !on; });
+  foldMarks.forEach(function (m) { m.visible = on; });
+  vLabels.forEach(function (pair) { pair.forEach(function (sp) { sp.visible = on && labelsOn; }); });
+}
+showVParts(false);
+
+function readTheme() {
+  var cs = getComputedStyle(document.documentElement);
+  lineMat.color.set(cs.getPropertyValue("--edge").trim() || "#3b342a");
+  markerOn.color.set(cs.getPropertyValue("--accent").trim() || "#b5422a");
+  dirty = true;
+}
+
+// Corner positions for the flat hexagon and for the two halves of a flex.
+function V(x, y, z) { return new THREE.Vector3(x, y, z); }
+function flatPose() {
+  var p = { C: V(0, 0, 0) };
+  for (var j = 0; j < 6; j++) p[j] = V(Math.cos(j * Math.PI / 3), Math.sin(j * Math.PI / 3), 0);
+  return p;
+}
+// Rigid-panel mechanism: six unit triangles round a centre, alternate corners lifted.
+function mech(rho) {
+  var h = Math.sqrt(Math.max(0, 1 - rho * rho));
+  var R = Math.hypot(rho, 2 * h), d = Math.atan2(2 * h, rho);
+  var b = d - Math.acos(Math.min(1, 1 / R));
+  return { rho: rho, h: h, r: Math.cos(b), z: Math.sin(b) };
+}
+function phase1Pose(u) {
+  var a = u * Math.PI / 2, m = mech(Math.cos(a));
+  var p = { C: V(0, 0, 0) };
+  for (var j = 0; j < 6; j++) {
+    var t = j * Math.PI / 3;
+    p[j] = j % 2 === 0 ? V(m.rho * Math.cos(t), m.rho * Math.sin(t), m.h) : V(m.r * Math.cos(t), m.r * Math.sin(t), m.z);
+  }
+  return shiftZ(p, -0.5 * u);
+}
+function phase2Pose(u) {
+  var a = u * Math.PI / 2, m = mech(Math.sin(a));
+  var p = { C: V(0, 0, 1) };
+  for (var j = 0; j < 6; j++) {
+    var t = j * Math.PI / 3;
+    p[j] = j % 2 === 0 ? V(m.rho * Math.cos(t), m.rho * Math.sin(t), 1 - m.h) : V(m.r * Math.cos(t), m.r * Math.sin(t), 1 - m.z);
+  }
+  return shiftZ(p, -0.5 - 0.5 * u);
+}
+function shiftZ(p, dz) { for (var k in p) p[k].z += dz; return p; }
+function uvFor(st, leaf, side, vIdx, order) {
+  // vIdx: corner P -> vertex index (0 centre, 1 V_k, 2 V_k+1). order: vertex order, counter-clockwise from the visible side.
+  var refP = model.ref[side];
+  var a = vIdx[refP];
+  var pos = order.indexOf(a);
+  var out = [];
+  out[order[pos]] = UV.A;
+  out[order[(pos + 1) % 3]] = UV.B;
+  out[order[(pos + 2) % 3]] = UV.C;
+  return out;
+}
+function setSheet(mesh, verts, order, uvs, face) {
+  var pa = mesh.geometry.attributes.position.array, ua = mesh.geometry.attributes.uv.array;
+  for (var i = 0; i < 3; i++) {
+    var v = verts[order[i]], uv = uvs[order[i]];
+    pa[3 * i] = v.x; pa[3 * i + 1] = v.y; pa[3 * i + 2] = v.z;
+    ua[2 * i] = uv[0]; ua[2 * i + 1] = uv[1];
+  }
+  mesh.geometry.attributes.position.needsUpdate = true;
+  mesh.geometry.attributes.uv.needsUpdate = true;
+  mesh.geometry.computeVertexNormals();
+  mesh.geometry.computeBoundingSphere();
+  mesh.material = materials[face - 1];
+}
+// shift > 0 pushes each sector towards its top side, < 0 towards its bottom side.
+function renderState(st, pose, shift) {
+  var E = model.E;
+  for (var k = 0; k < 6; k++) {
+    var base = [pose.C, pose[k], pose[(k + 1) % 6]];
+    var nrm = new THREE.Vector3().subVectors(base[1], base[0]).cross(new THREE.Vector3().subVectors(base[2], base[0])).normalize();
+    var verts = base.map(function (v) { return v.clone().addScaledVector(nrm, shift); });
+    var t = E.topSide(st, k), b = E.botSide(st, k);
+    var idxOf = function (leaf) {
+      var m = {};
+      E.corners(leaf).forEach(function (P) { var p = st.pos[P]; m[P] = p === "C" ? 0 : (p === k ? 1 : 2); });
+      return m;
+    };
+    var topOrder = [0, 1, 2], botOrder = [0, 2, 1];
+    setSheet(sectors[k].top, verts, topOrder, uvFor(st, t.leaf, t.side, idxOf(t.leaf), topOrder), model.faceOf[t.side]);
+    setSheet(sectors[k].bot, verts, botOrder, uvFor(st, b.leaf, b.side, idxOf(b.leaf), botOrder), model.faceOf[b.side]);
+    var la = sectors[k].line.geometry.attributes.position.array, e = [0, 1, 1, 2, 2, 0];
+    for (var i = 0; i < 6; i++) { var v = verts[e[i]]; la[3 * i] = v.x; la[3 * i + 1] = v.y; la[3 * i + 2] = v.z; }
+    sectors[k].line.geometry.attributes.position.needsUpdate = true;
+    sectors[k].line.geometry.computeBoundingSphere();
+  }
+}
+// Vertex order of each piece seen from the side that faces up before the V-flex.
+var V_UP = {};
+for (var vk2 = 1; vk2 <= 9; vk2++) {
+  var vt = V_TRI[vk2].map(function (i) { var x = V_BEFORE[i]; return x === "C" ? [0, 0] : [Math.cos(x * Math.PI / 3), Math.sin(x * Math.PI / 3)]; });
+  V_UP[vk2] = (vt[1][0] - vt[0][0]) * (vt[2][1] - vt[0][1]) - (vt[1][1] - vt[0][1]) * (vt[2][0] - vt[0][0]) > 0 ? [0, 1, 2] : [0, 2, 1];
+}
+function uvsFor(ref, order) {
+  var pos = order.indexOf(ref), out = [];
+  out[order[pos]] = UV.A; out[order[(pos + 1) % 3]] = UV.B; out[order[(pos + 2) % 3]] = UV.C;
+  return out;
+}
+// Draw the V-flex rig at frame position f (fractional) of vPath, turned to corner v.
+function renderV(rig, v, f) {
+  var i0 = Math.max(0, Math.min(vPath.frames.length - 1, Math.floor(f))), i1 = Math.min(vPath.frames.length - 1, i0 + 1), w = f - i0;
+  // Never blend across a jump: show the configuration on the side the position is on.
+  if (vPath.jumps.indexOf(i1) >= 0 && w > 0) { if (w < 0.5) { i1 = i0; w = 0; } else { i0 = i1; w = 0; } }
+  var A = vPath.frames[i0], B = vPath.frames[i1], OA = vPath.offs[i0], OB = vPath.offs[i1];
+  var c = Math.cos(v * Math.PI / 3), sn = Math.sin(v * Math.PI / 3);
+  var turn = function (p) { return V(p[0] * c - p[1] * sn, p[0] * sn + p[1] * c, p[2]); };
+  var at = function (i) { return turn([0, 1, 2].map(function (q) { return A[i][q] + (B[i][q] - A[i][q]) * w; })); };
+  var X = [null]; for (var i = 1; i <= 9; i++) X.push(at(i));
+  rig.pieces.forEach(function (p, n) {
+    var o = turn([0, 1, 2].map(function (q) { return OA[p.k][q] + (OB[p.k][q] - OA[p.k][q]) * w; }));
+    var verts = V_TRI[p.k].map(function (i) { return X[i].clone().add(o); });
+    var up = V_UP[p.k], down = [up[0], up[2], up[1]];
+    setSheet(vParts[n].top, verts, up, uvsFor(p.upRef, up), model.faceOf[p.up]);
+    setSheet(vParts[n].bot, verts, down, uvsFor(p.downRef, down), model.faceOf[p.down]);
+    var la = vParts[n].line.geometry.attributes.position.array, e = [0, 1, 1, 2, 2, 0];
+    for (var j = 0; j < 6; j++) { var vv = verts[e[j]]; la[3 * j] = vv.x; la[3 * j + 1] = vv.y; la[3 * j + 2] = vv.z; }
+    vParts[n].line.geometry.attributes.position.needsUpdate = true;
+    vParts[n].line.geometry.computeBoundingSphere();
+    // Just off each face, closer than the next layer, so a label hides under any layer lying on top of it.
+    var cen = verts[0].clone().add(verts[1]).add(verts[2]).multiplyScalar(1 / 3);
+    var nrm = new THREE.Vector3().subVectors(verts[up[1]], verts[up[0]]).cross(new THREE.Vector3().subVectors(verts[up[2]], verts[up[0]])).normalize();
+    vLabels[n][0].material = vLabels[n][1].material = labelMats[p.k];
+    vLabels[n][0].position.copy(cen).addScaledVector(nrm, 0.004);
+    vLabels[n][0].quaternion.setFromUnitVectors(zAxis, nrm);
+    vLabels[n][1].position.copy(cen).addScaledVector(nrm, -0.004);
+    vLabels[n][1].quaternion.setFromUnitVectors(zAxis, nrm.clone().negate());
+  });
+  foldMarks[0].position.copy(X[2]); foldMarks[1].position.copy(X[4]);
+}
+// Which corners the V-flex works at in the current state (cached per state).
+var vCache = { st: null, ok: null };
+function vSpots() {
+  if (vCache.st !== state) { vCache.st = state; vCache.ok = [0, 1, 2, 3, 4, 5].map(function (j) { return !!model.E.vflex(state, j); }); }
+  return vCache.ok;
+}
+// Pinch: the three corners that will meet. V-flex: the two corners that will meet (large), the crease between
+// them, and small bright dots on the other creases where a V-flex works.
+function showMarkers(on) {
+  var flat = flatPose(), vOK = kind === "v" ? vSpots() : null;
+  for (var j = 0; j < 6; j++) {
+    markers[j].visible = on;
+    markers[j].position.copy(flat[j]);
+    if (!vOK) {
+      markers[j].material = j % 2 === parity ? markerOn : markerOff;
+      markers[j].scale.setScalar(j % 2 === parity ? 1 : 0.7);
+      continue;
+    }
+    var meet = j === vpos || j === (vpos + 2) % 6, crease = vOK[(j + 5) % 6];
+    markers[j].material = (meet && vOK[vpos]) || (!meet && crease) ? markerOn : markerOff;
+    markers[j].scale.setScalar(meet ? 1.3 : crease ? 0.7 : 0.55);
+  }
+  axisLine.visible = on && !!vOK;
+  axisLine.rotation.set(0, 0, (vpos + 1) * Math.PI / 3);
+}
+
+var dirty = true;
+function placeCamera() {
+  var cp = Math.cos(view.pitch);
+  camera.position.set(view.dist * cp * Math.cos(view.yaw), view.dist * cp * Math.sin(view.yaw), view.dist * Math.sin(view.pitch));
+  camera.lookAt(0, 0, 0);
+  sun.position.copy(camera.position).add(V(1.2, 0.8, 2));
+}
+function resize() {
+  var w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / Math.max(1, h);
+  camera.updateProjectionMatrix();
+  dirty = true;
+}
+new ResizeObserver(resize).observe(stage);
+
+/* ---------- Animation ---------- */
+var ease = function (u) { return u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2; };
+function idleDraw() {
+  root.rotation.set(0, 0, 0);
+  renderState(state, flatPose(), 0);
+  showMarkers(true);
+  dirty = true;
+}
+function busy() { return !!anim || !!vg; }
+function setButtons() {
+  var b = busy();
+  ["b-flex", "b-rot", "b-flip", "b-corner", "b-reset", "m-tri", "m-hexa", "k-pinch", "k-v"].forEach(function (id) { $(id).disabled = b; });
+  if (!model.hasV) $("k-v").disabled = true;
+  $("b-auto").disabled = false;
+}
+function start(a) { a.t0 = performance.now(); anim = a; showMarkers(false); setButtons(); dirty = true; }
+function finish() {
+  var a = anim; anim = null;
+  if (a.done) a.done();
+  idleDraw(); updatePanel(); setButtons();
+  if (autoOn) autoTimer = setTimeout(autoStep, reduceMotion ? 400 : 550);
+}
+function step(now) {
+  if (vg) vgTick(now);
+  if (anim) {
+    var a = anim, u = Math.min(1, (now - a.t0) / (a.dur / SPEED));
+    a.frame(u);
+    dirty = true;
+    if (u >= 1) finish();
+  }
+  if (dirty) { placeCamera(); renderer.render(scene, camera); dirty = false; }
+  requestAnimationFrame(step);
+}
+
+function doRotate() {
+  if (busy()) return;
+  start({ dur: 520, frame: function (u) { root.rotation.set(0, 0, ease(u) * Math.PI / 3); },
+    done: function () { state = model.E.rot(state); } });
+}
+function doFlip() {
+  if (busy()) return;
+  start({ dur: 800, frame: function (u) { root.rotation.set(ease(u) * Math.PI, 0, 0); },
+    done: function () { state = model.E.flip(state); } });
+}
+function doFlex() {
+  if (busy()) return false;
+  var E = model.E;
+  var base = parity ? E.rotN(state, 5) : state;
+  var next = E.flex(base);
+  var offset = parity ? Math.PI / 3 : 0;
+  if (!next) {
+    start({ dur: 700, frame: function (u) {
+      var w = Math.sin(u * Math.PI) * 0.22;
+      root.rotation.set(0, 0, offset);
+      renderState(base, phase1Pose(w), -0.02 * w * 4);
+    } });
+    say("It won't open at these corners. Try the other three.");
+    return false;
+  }
+  start({ dur: 2000, frame: function (u) {
+    root.rotation.set(0, 0, offset);
+    if (u < 0.5) { var p = ease(u * 2); renderState(base, phase1Pose(p), -0.02 * p); }
+    else { var q = ease((u - 0.5) * 2); renderState(next, phase2Pose(q), 0.02 * (1 - q)); }
+  }, done: function () { state = parity ? E.rot(next) : next; flexCount++; } });
+  return true;
+}
+/* ---------- V-flex, step by step ---------- */
+var vg = null, vgLast = 0;
+var VG_SPEED = 42;  // frames of vPath per second
+function startVFlex() {
+  if (busy()) return false;
+  var rig = vRig(model, state, vpos);
+  if (!rig) {
+    var elsewhere = vSpots().some(function (x) { return x; });
+    say(elsewhere ? "No V-flex at this crease. The small bright dots mark creases where it works." : "No V-flex works anywhere right now. Pinch flex first, then try again.", 3400);
+    return false;
+  }
+  // Turn the view so the crease points away and the two corners that meet are left and right.
+  var yaw1 = (vpos + 1) * Math.PI / 3 - Math.PI;
+  while (yaw1 - view.yaw > Math.PI) yaw1 -= 2 * Math.PI;
+  while (view.yaw - yaw1 > Math.PI) yaw1 += 2 * Math.PI;
+  vg = { rig: rig, v: vpos, f: 0, to: 0, playing: false, hold: null, cam: { t0: performance.now(), yaw0: view.yaw, yaw1: yaw1, p0: view.pitch, p1: 0.8 } };
+  showMarkers(false); showVParts(true); setButtons();
+  $("vguide").hidden = false;
+  vgUpdate(); renderV(vg.rig, vg.v, 0); dirty = true;
+  return true;
+}
+var NS = V_STEPS.length;
+function vgStep() { var m = vPath.marks; for (var i = 0; i < NS; i++) if (vg.f < m[i + 1] - 0.01) return i; return NS; }
+function vgUpdate() {
+  var i = vgStep(), m = vPath.marks, done = i === NS, shown = Math.min(i, NS - 1);
+  $("vg-count").textContent = done ? "Done" : "Step " + (i + 1) + " of " + NS;
+  $("vg-title").textContent = done ? "The V-flex is complete" : V_STEPS[i].title;
+  $("vg-text").textContent = done ? "Press Finish to keep the new arrangement, or go back to watch a step again." : V_STEPS[i].text;
+  $("vguide").classList.toggle("bend", !done && !!V_STEPS[i].bend);
+  $("vg-scrub").value = String(Math.round(vg.f));
+  $("vg-play").textContent = vg.playing ? "Pause" : "Play all";
+  $("vg-next").textContent = done ? "Finish" : vg.f > m[shown] + 0.5 && !vg.playing ? "Continue" : "Show step " + (shown + 1);
+  $("vg-back").disabled = vg.f <= 0;
+  [].forEach.call(document.querySelectorAll("#vg-dots span"), function (d, k) { d.className = k < i ? "on" : k === i ? "cur" : ""; });
+}
+function vgGo(to, play) { vg.to = Math.max(0, Math.min(vPath.frames.length - 1, to)); vg.playing = play !== false && vg.to !== vg.f; vgLast = performance.now(); vgUpdate(); }
+function vgTick(now) {
+  var c = vg.cam;
+  if (c) {
+    var u = Math.min(1, (now - c.t0) / 700);
+    view.yaw = c.yaw0 + (c.yaw1 - c.yaw0) * ease(u); view.pitch = c.p0 + (c.p1 - c.p0) * ease(u);
+    dirty = true;
+    if (u >= 1) vg.cam = null;
+  }
+  if (!vg.playing) return;
+  var dt = (now - vgLast) / 1000; vgLast = now;
+  var d = vg.to - vg.f, stepF = VG_SPEED * SPEED * Math.min(dt, 0.1);
+  var nf = Math.abs(d) <= stepF ? vg.to : vg.f + Math.sign(d) * stepF;
+  // Across a jump the paper bends; hold the picture for a moment on each side instead of sliding through it.
+  var J = vPath.jumps;
+  for (var ji = 0; ji < J.length; ji++) {
+    var jf = J[ji];
+    if ((vg.f < jf && nf >= jf) || (vg.f > jf && nf <= jf)) {
+      if (!vg.hold) { vg.hold = now + 900; nf = vg.f; }
+      else if (now < vg.hold) nf = vg.f;
+      else { vg.hold = null; nf = d > 0 ? jf + 0.5 : jf - 0.5; }
+    }
+  }
+  vg.f = nf;
+  if (vg.f === vg.to) vg.playing = false;
+  renderV(vg.rig, vg.v, vg.f); vgUpdate(); dirty = true;
+}
+function vgNext() {
+  var i = vgStep();
+  if (i === NS) return vgFinish();
+  vgGo(vPath.marks[i + 1]);
+}
+function vgBack() {
+  var i = vgStep(), m = vPath.marks, startI = m[Math.min(i, NS - 1)];
+  vgGo(vg.f > startI + 0.5 ? startI : m[Math.max(0, Math.min(i, NS - 1) - 1)]);
+}
+function vgEnd(commit) {
+  var g = vg; vg = null;
+  $("vguide").hidden = true;
+  showVParts(false);
+  if (commit) { state = g.rig.next; flexCount++; vCount++; }
+  idleDraw(); updatePanel(); setButtons();
+}
+function vgFinish() { vgEnd(true); }
+function doCurrentFlex() { return kind === "v" ? startVFlex() : doFlex(); }
+function setKind(k) {
+  if (k === "v" && !model.hasV) k = "pinch";
+  kind = k;
+  $("k-pinch").setAttribute("aria-pressed", k === "pinch" ? "true" : "false");
+  $("k-v").setAttribute("aria-pressed", k === "v" ? "true" : "false");
+  $("b-flex").textContent = k === "v" ? "V-flex" : "Pinch flex";
+  $("b-corner").textContent = k === "v" ? "Move the V" : "Use other corners";
+  $("stage-note").textContent = k === "v" ? "Drag to turn the view, even underneath. Tap a corner to make it the crease of the V." : "Drag to turn the view, even underneath. Tap a corner to pinch there.";
+  $("kind-note").hidden = model.hasV;
+  showMarkers(!busy());
+  dirty = true;
+}
+// Next crease along where the V-flex works, or simply the next one if none does.
+function moveV() {
+  var ok = vSpots();
+  for (var i = 1; i <= 6; i++) if (ok[(vpos + i) % 6]) { vpos = (vpos + i) % 6; return; }
+  vpos = (vpos + 1) % 6;
+}
+function canFlex(par) { return !!model.E.flexAt(state, par); }
+function autoStep() {
+  if (!autoOn || busy()) return;
+  if (!canFlex(parity)) { parity = 1 - parity; showMarkers(true); dirty = true; }
+  doFlex();
+}
+function setAuto(on) {
+  if (on && vg) vgEnd(false);
+  autoOn = on;
+  $("b-auto").setAttribute("aria-pressed", on ? "true" : "false");
+  $("b-auto").textContent = on ? "Stop the tour" : "Tuckerman tour";
+  clearTimeout(autoTimer);
+  if (on) { setKind("pinch"); say("Flexing at the same corners while they open, otherwise moving one corner over.", 3200); autoStep(); }
+}
+function setModel(key) {
+  setAuto(false);
+  if (vg) vgEnd(false);
+  model = MODELS[key];
+  state = model.init;
+  parity = 0; vpos = 0; flexCount = 0; vCount = 0; seenFaces = {};
+  $("m-tri").setAttribute("aria-pressed", key === "tri" ? "true" : "false");
+  $("m-hexa").setAttribute("aria-pressed", key === "hexa" ? "true" : "false");
+  setKind(kind);
+  setButtons();
+  idleDraw(); updatePanel(); drawNet();
+}
+
+$("b-flex").addEventListener("click", function () { setAuto(false); doCurrentFlex(); });
+$("k-pinch").addEventListener("click", function () { setAuto(false); setKind("pinch"); });
+$("k-v").addEventListener("click", function () { setAuto(false); setKind("v"); });
+$("b-rot").addEventListener("click", function () { setAuto(false); doRotate(); });
+$("b-flip").addEventListener("click", function () { setAuto(false); doFlip(); });
+$("b-corner").addEventListener("click", function () {
+  setAuto(false);
+  if (kind === "v") moveV(); else parity = 1 - parity;
+  showMarkers(true); dirty = true;
+});
+$("b-auto").addEventListener("click", function () { setAuto(!autoOn); });
+$("b-reset").addEventListener("click", function () { setModel(model === MODELS.tri ? "tri" : "hexa"); });
+$("m-tri").addEventListener("click", function () { setModel("tri"); });
+$("m-hexa").addEventListener("click", function () { setModel("hexa"); });
+document.addEventListener("keydown", function (e) {
+  if (e.target.closest && e.target.closest("button, input")) return;
+  if (vg) {
+    if (e.key === " " || e.key === "ArrowRight" || e.key === "v" || e.key === "f") { e.preventDefault(); vgNext(); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); vgBack(); }
+    else if (e.key === "Escape") vgEnd(false);
+    return;
+  }
+  if (e.key === "f" || e.key === " ") { e.preventDefault(); setAuto(false); doCurrentFlex(); }
+  else if (e.key === "v" && model.hasV) { setAuto(false); setKind("v"); startVFlex(); }
+  else if (e.key === "r") { setAuto(false); doRotate(); }
+  else if (e.key === "t") { setAuto(false); doFlip(); }
+});
+
+$("vg-next").addEventListener("click", function () { if (vg) vgNext(); });
+$("vg-back").addEventListener("click", function () { if (vg) vgBack(); });
+$("vg-cancel").addEventListener("click", function () { if (vg) vgEnd(false); });
+$("vg-labels").checked = labelsOn;
+$("vg-labels").addEventListener("change", function () {
+  labelsOn = this.checked;
+  try { localStorage.setItem("vflexLabels", labelsOn ? "on" : "off"); } catch (e) {}
+  $("vg-note").hidden = !labelsOn;
+  if (vg) { showVParts(true); dirty = true; }
+});
+$("vg-note").hidden = !labelsOn;
+$("vg-play").addEventListener("click", function () {
+  if (!vg) return;
+  if (vg.playing) { vg.playing = false; vg.to = vg.f; vgUpdate(); }
+  else vgGo(vg.f >= vPath.frames.length - 1 ? 0 : vPath.frames.length - 1);
+});
+$("vg-scrub").max = String(vPath.frames.length - 1);
+$("vg-scrub").addEventListener("input", function () {
+  if (!vg) return;
+  vg.playing = false; vg.f = vg.to = +this.value;
+  renderV(vg.rig, vg.v, vg.f); vgUpdate(); dirty = true;
+});
+
+/* ---------- Drag to orbit, tap to pick corners ---------- */
+var drag = null;
+renderer.domElement.addEventListener("pointerdown", function (e) {
+  drag = { x: e.clientX, y: e.clientY, yaw: view.yaw, pitch: view.pitch, moved: false };
+  renderer.domElement.setPointerCapture(e.pointerId);
+});
+renderer.domElement.addEventListener("pointermove", function (e) {
+  if (!drag) return;
+  var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (Math.abs(dx) + Math.abs(dy) > 5) drag.moved = true;
+  if (!drag.moved) return;
+  view.yaw = drag.yaw - dx * 0.008;
+  view.pitch = Math.max(-1.5, Math.min(1.5, drag.pitch + dy * 0.008));
+  dirty = true;
+});
+renderer.domElement.addEventListener("pointerup", function (e) {
+  if (drag && !drag.moved && !busy()) pick(e);
+  drag = null;
+});
+renderer.domElement.addEventListener("pointercancel", function () { drag = null; });
+function pick(e) {
+  var r = renderer.domElement.getBoundingClientRect();
+  var best = -1, bd = 40;
+  var flat = flatPose();
+  for (var j = 0; j < 6; j++) {
+    var p = flat[j].clone().project(camera);
+    var x = (p.x + 1) / 2 * r.width, y = (1 - p.y) / 2 * r.height;
+    var d = Math.hypot(x - (e.clientX - r.left), y - (e.clientY - r.top));
+    if (d < bd) { bd = d; best = j; }
+  }
+  if (best < 0) return;
+  if (kind === "v") vpos = (best + 5) % 6; else parity = best % 2;
+  showMarkers(true); dirty = true;
+}
+
+if (window.matchMedia) {
+  var mq = window.matchMedia("(prefers-color-scheme: dark)");
+  if (mq.addEventListener) mq.addEventListener("change", readTheme);
+}
+new MutationObserver(readTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+readTheme();
+resize();
+setModel("tri");
+setButtons();
+requestAnimationFrame(step);
+window.__flexagon = { tick: function () { step(performance.now()); }, flex: doFlex, vflex: startVFlex, vnext: function () { vg && vgNext(); }, get vg() { return vg; }, rotate: doRotate, flip: doFlip, models: MODELS, get state() { return state; } };
+})();
+</script>
+</body>
+</html>
