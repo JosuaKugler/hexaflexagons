@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flexagon Physics Tests</title>
+<style>
+:root {
+  --bg: #f2efe8; --fg: #1f1d1a; --muted: #6a6459; --rule: #d6cfc1; --panel: #faf8f3;
+  --pass: #2f7a4a; --fail: #b5422a; --warn: #9a6a12;
+  --body: system-ui, -apple-system, "Segoe UI", sans-serif; --mono: ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #151412; --fg: #ece7dd; --muted: #a39b8c; --rule: #37332c; --panel: #1d1b18; --pass: #6cc28c; --fail: #e7765a; --warn: #e0b04a; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--body); padding: 32px max(16px, env(safe-area-inset-left)) 56px; }
+main { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+h1 { font-size: 1.9rem; margin: 0; font-weight: 600; }
+h2 { font-size: 1.2rem; margin: 0 0 8px; font-weight: 600; }
+p { margin: 0; max-width: 70ch; }
+.muted { color: var(--muted); }
+#summary { font-family: var(--mono); font-size: 0.95rem; padding: 10px 14px; border: 1px solid var(--rule); border-radius: 6px; background: var(--panel); white-space: pre-wrap; }
+table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-top: 1px solid var(--rule); font-size: 0.9rem; }
+th { font-weight: 600; color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; border-top: 0; }
+td.st { font-family: var(--mono); font-weight: 600; white-space: nowrap; }
+td.PASS { color: var(--pass); } td.FAIL { color: var(--fail); } td.KNOWN { color: var(--warn); }
+td .why { color: var(--muted); font-size: 0.82rem; display: block; margin-top: 2px; }
+td.detail { font-family: var(--mono); font-size: 0.8rem; white-space: pre-wrap; word-break: break-word; }
+.wrap { overflow-x: auto; }
+ol { margin: 0; padding-left: 20px; max-width: 70ch; }
+#paper { font-family: var(--mono); font-size: 0.85rem; white-space: pre-wrap; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; }
+iframe { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Flexagon physics tests</h1>
+    <p class="muted">Checks the simulation in index.html against what paper can and cannot do. The page loads the simulation in a hidden frame and tests its engine and its V-flex motion directly.</p>
+  </header>
+  <div id="summary">Running…</div>
+
+  <section>
+    <h2>Automatic checks</h2>
+    <div class="wrap"><table>
+      <thead><tr><th>Check</th><th>Result</th><th>Details</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Paper check</h2>
+    <p>The automatic checks can only test the model against its own physical rules. To test it against reality, fold a hexahexaflexagon from the template on the main page and compare:</p>
+    <ol>
+      <li>Fold the strip, start with face 1 on top and face 2 underneath (the main page's "Start again" state).</li>
+      <li>Choose V-flex and leave the first crease selected. Note the two marked corners; on paper, mark them the same way.</li>
+      <li>Follow the four steps. After each one, compare what you hold with the 3D view; the shapes listed below are what the model predicts.</li>
+      <li>When it lies flat again, compare each sector with the table below. A single wrong face, or a picture turned differently, means the model and the paper disagree.</li>
+    </ol>
+    <div id="paper">Working…</div>
+  </section>
+</main>
+<iframe id="sim" src="index.html" title="Simulation under test"></iframe>
+<script>
+(function () {
+  "use strict";
+  var rows = document.getElementById("rows"), results = [];
+  function report(name, why, status, detail) {
+    results.push({ name: name, status: status, detail: detail });
+    var tr = document.createElement("tr");
+    tr.innerHTML = "<td></td><td class='st " + status + "'>" + status + "</td><td class='detail'></td>";
+    tr.children[0].textContent = name;
+    var w = document.createElement("span"); w.className = "why"; w.textContent = why; tr.children[0].appendChild(w);
+    tr.children[2].textContent = detail;
+    rows.appendChild(tr);
+  }
+  var NAME = " abcdefghi";
+  var sub = function (a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; };
+  var dot = function (a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; };
+  var cross = function (a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; };
+  var len = function (a) { return Math.hypot(a[0], a[1], a[2]); };
+  var lerp = function (a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; };
+  var add = function (a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; };
+  var pt = function (x) { return x === "C" ? [0, 0, 0] : [Math.cos(x * Math.PI / 3), Math.sin(x * Math.PI / 3), 0]; };
+  var turn = function (p, v) { var c = Math.cos(v * Math.PI / 3), s = Math.sin(v * Math.PI / 3); return [p[0] * c - p[1] * s, p[0] * s + p[1] * c, p[2]]; };
+
+  function reach(model, withV) {
+    var E = model.E, seen = {}, q = [model.init], all = [], vt = [];
+    seen[E.key(model.init)] = 1;
+    while (q.length) {
+      var s = q.shift(), nb = [E.flexAt(s, 0), E.flexAt(s, 1), E.rot(s), E.flip(s)];
+      all.push(s);
+      if (withV) for (var v = 0; v < 6; v++) { var t = E.vflex(s, v); if (t) { vt.push([s, v, t]); nb.push(t); } }
+      nb.forEach(function (x) { if (x && !seen[E.key(x)]) { seen[E.key(x)] = 1; q.push(x); } });
+    }
+    return { all: all, vt: vt };
+  }
+
+  function run(T) {
+    var M = T.MODELS, H = M.hexa, E = H.E, P = T.vPath, TRI = T.V_TRI, N = P.frames.length;
+
+    /* ---------- Engine ---------- */
+    var PINCH = { inp: [[1, 2], 3, [4, 5], 6, [7, 8], 9], out: [-1, [5, -3], -4, [8, -6], -7, [2, -9]] };
+    var bad = 0, total = 0;
+    ["tri", "hexa"].forEach(function (k) {
+      var m = M[k], Em = m.E;
+      reach(m, false).all.forEach(function (s) {
+        total++;
+        var a = Em.flex(s), b = Em.patFlex(s, PINCH, 0);
+        if ((a ? Em.key(a) : "") !== (b ? Em.key(b) : "")) bad++;
+      });
+    });
+    report("Pinch flex from pat notation matches the engine", "Sherman's definition of the pinch flex, run through the same code that runs the V-flex, must give the engine's own pinch flex in every reachable state. This fixes the notation's conventions.",
+      bad ? "FAIL" : "PASS", total + " states, " + bad + " mismatches");
+
+    var hx = reach(H, true);
+    report("Hexahexaflexagon reaches 3,420 × 12 states", "Iacob, McLean and Wang (2012) count 3,420 arrangements with pinch and V-flexes; each comes in 6 rotations and 2 sides.",
+      hx.all.length === 41040 ? "PASS" : "FAIL", hx.all.length + " states (expected 41040), " + hx.vt.length + " V-flexes");
+
+    var inv = 0;
+    hx.vt.forEach(function (x) {
+      var back = false, target = E.key(E.flip(x[0]));
+      for (var v = 0; v < 6 && !back; v++) { var y = E.vflex(E.flip(x[2]), v); if (y && E.key(y) === target) back = true; }
+      if (!back) inv++;
+    });
+    report("Turn over, V-flex, turn over undoes a V-flex", "Paper motions can be run backwards. Sherman gives V' = ^V^.", inv ? "FAIL" : "PASS", hx.vt.length + " V-flexes, " + inv + " without an inverse");
+
+    var triV = reach(M.tri, true).vt.length;
+    report("The trihexaflexagon has no V-flex", "The V-flex needs at least four faces (Sherman).", triV ? "FAIL" : "PASS", triV + " V-flexes found");
+
+    /* ---------- Rig and endpoints ---------- */
+    var noRig = 0, endBad = 0, faceBad = 0, faceMsg = "";
+    var F0 = P.frames[0], FL = P.frames[N - 1];
+    var upSign = {};
+    for (var k = 1; k <= 9; k++) upSign[k] = Math.sign(cross(sub(F0[TRI[k][1]], F0[TRI[k][0]]), sub(F0[TRI[k][2]], F0[TRI[k][0]]))[2]);
+    function rendered(f, k) {
+      var o = P.offs[f][k];
+      return TRI[k].map(function (i) { return add(P.frames[f][i], o); });
+    }
+    // Which face of which piece shows from above (dir 1) or below (-1) at point q (canonical frame).
+    function seen(f, q, dir, rig) {
+      var best = null, bz = 0;
+      rig.pieces.forEach(function (p) {
+        var t = rendered(f, p.k), a = t[0], b = t[1], c = t[2];
+        var d = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+        if (Math.abs(d) < 1e-9) return;
+        var u = ((q[0] - a[0]) * (c[1] - a[1]) - (q[1] - a[1]) * (c[0] - a[0])) / d;
+        var w = ((b[0] - a[0]) * (q[1] - a[1]) - (b[1] - a[1]) * (q[0] - a[0])) / d;
+        if (u < 0 || w < 0 || u + w > 1) return;
+        var z = a[2] + u * (b[2] - a[2]) + w * (c[2] - a[2]);
+        if (best === null || z * dir > bz * dir) { best = p; bz = z; }
+      });
+      if (!best) return null;
+      var t = rendered(f, best.k), nz = cross(sub(t[1], t[0]), sub(t[2], t[0]))[2] * upSign[best.k];
+      return H.faceOf[(nz > 0) === (dir > 0) ? best.up : best.down];
+    }
+    hx.vt.forEach(function (x) {
+      var s = x[0], v = x[1], t = x[2], rig = T.vRig(H, s, v);
+      if (!rig) { noRig++; return; }
+      rig.pieces.forEach(function (p) {
+        p.leaves.forEach(function (l) {
+          E.corners(l).forEach(function (Pc) {
+            var at0 = pt(s.pos[Pc]), m = -1;
+            for (var q = 0; q < 3; q++) if (len(sub(turn(F0[TRI[p.k][q]], v), at0)) < 1e-6) m = q;
+            if (m < 0 || len(sub(turn(FL[TRI[p.k][m]], v), pt(t.pos[Pc]))) > 1e-6) endBad++;
+          });
+        });
+      });
+      for (var sec = 0; sec < 6; sec++) {
+        var q = turn([0.55 * Math.cos((sec - v + 0.5) * Math.PI / 3), 0.55 * Math.sin((sec - v + 0.5) * Math.PI / 3), 0], 0);
+        var want = [H.faceOf[E.topSide(s, sec).side], H.faceOf[E.botSide(s, sec).side], H.faceOf[E.topSide(t, sec).side], H.faceOf[E.botSide(t, sec).side]];
+        var got = [seen(0, q, 1, rig), seen(0, q, -1, rig), seen(N - 1, q, 1, rig), seen(N - 1, q, -1, rig)];
+        for (var i = 0; i < 4; i++) if (got[i] !== want[i]) { faceBad++; if (!faceMsg) faceMsg = "first: V at " + v + ", sector " + sec + (i < 2 ? " before" : " after") + (i % 2 ? " underneath" : " on top") + ": shows " + got[i] + ", engine says " + want[i]; }
+      }
+    });
+    report("Every V-flex fits the nine-piece model", "The motion moves the nine pieces of Sherman's pattern as rigid triangles; this must cover every V-flex the engine allows.",
+      noRig ? "FAIL" : "PASS", hx.vt.length + " V-flexes, " + noRig + " that don't fit");
+    report("The motion starts and ends on the engine's states", "Every corner of every leaf must start where the engine has it before the flex and finish where it has it after.",
+      endBad ? "FAIL" : "PASS", endBad + " misplaced leaf corners over all V-flexes");
+    report("The faces shown at start and end match the engine", "Looking down on (and up at) each sector of the 3D model must show the faces the engine predicts, which tests the layer order the animation ends with.",
+      faceBad ? "FAIL" : "PASS", faceBad + " wrong sector views (out of " + hx.vt.length * 24 + ")" + (faceMsg ? "\n" + faceMsg : ""));
+
+    /* ---------- Motion ---------- */
+    var worst = 0, wf = 0;
+    P.frames.forEach(function (X, f) {
+      for (var k = 1; k <= 9; k++) for (var a = 0; a < 3; a++) {
+        var e = Math.abs(len(sub(X[TRI[k][a]], X[TRI[k][(a + 1) % 3]])) - 1);
+        if (e > worst) { worst = e; wf = f; }
+      }
+    });
+    report("Paper does not stretch", "Every triangle edge keeps its length (1) in every frame. Allowed: 5%.",
+      worst <= 0.05 ? "PASS" : "FAIL", "largest change " + (worst * 100).toFixed(1) + "% at frame " + wf);
+
+    var steps = [];
+    for (var f = 1; f < N; f++) {
+      if ((P.jumps || []).indexOf(f) >= 0) continue;
+      var m = 0;
+      for (var i = 1; i <= 9; i++) m = Math.max(m, len(sub(P.frames[f][i], P.frames[f - 1][i])));
+      steps.push(m);
+    }
+    var moving = steps.filter(function (x) { return x > 1e-6; });
+    var mean = moving.reduce(function (a, b) { return a + b; }, 0) / Math.max(1, moving.length), mx = Math.max.apply(null, steps);
+    report("The motion has no jumps, except where the paper bends", "No point moves more than 2.5 times the average step between two frames (averaged over frames where something moves); the moves that are not simulated are left out.",
+      mx <= 2.5 * mean ? "PASS" : "FAIL", "largest step " + mx.toFixed(3) + " at frame " + (steps.indexOf(mx) + 1) + ", average " + mean.toFixed(3));
+
+    // Paper through paper: sample points inside each piece must never cross the plane of another piece
+    // while lying over it, in any frame or between frames.
+    var SUB = 4;
+    function samples(t) {
+      var c = [(t[0][0] + t[1][0] + t[2][0]) / 3, (t[0][1] + t[1][1] + t[2][1]) / 3, (t[0][2] + t[1][2] + t[2][2]) / 3], out = [c];
+      for (var a = 0; a < 3; a++) {
+        out.push(lerp(c, t[a], 0.85));
+        out.push(lerp(c, lerp(t[a], t[(a + 1) % 3], 0.5), 0.8));
+      }
+      return out;
+    }
+    function over(p, t) {
+      var n = cross(sub(t[1], t[0]), sub(t[2], t[0])), nn = len(n);
+      if (nn < 1e-9) return null;
+      n = [n[0] / nn, n[1] / nn, n[2] / nn];
+      var d = dot(sub(p, t[0]), n), proj = sub(p, [n[0] * d, n[1] * d, n[2] * d]);
+      var v0 = sub(t[1], t[0]), v1 = sub(t[2], t[0]), v2 = sub(proj, t[0]);
+      var d00 = dot(v0, v0), d01 = dot(v0, v1), d11 = dot(v1, v1), d20 = dot(v2, v0), d21 = dot(v2, v1), den = d00 * d11 - d01 * d01;
+      var b1 = (d11 * d20 - d01 * d21) / den, b2 = (d00 * d21 - d01 * d20) / den;
+      return { d: d, inside: b1 > 0.02 && b2 > 0.02 && b1 + b2 < 0.98 };
+    }
+    // For each piece k, sample point and piece l: while the point lies over l, remember which side of l it is on.
+    // A change of side while it stays over l is paper passing through paper, whether it goes straight through
+    // or the two lie flat together for a while and come apart the other way round.
+    // tol: how far apart two layers must be before their order counts (paper thickness, roughly).
+    // The order at the first frame is taken from the drawn model, whose stacking is checked against the engine
+    // above, and the order at the last contact must match the drawn model's final stacking too.
+    function crossings(tri, tol, skip) {
+      var side = {}, ev = {};
+      var note = function (k, l, f) {
+        var pair = NAME[Math.min(k, l)] + " and " + NAME[Math.max(k, l)], e = ev[pair] || (ev[pair] = []), last = e[e.length - 1];
+        if (last && f - last[1] <= 3) last[1] = f; else e.push([f, f]);
+      };
+      var look = function (cur, k, l, si, f, seed) {
+        if (skip && skip(k, l, si, f)) return;
+        var key = k + "," + l + "," + si, o = over(samples(cur[k])[si], cur[l]);
+        if (!o || !o.inside) { delete side[key]; return; }
+        if (Math.abs(o.d) < (seed ? 1e-6 : tol)) return;
+        var sg = Math.sign(o.d);
+        if (!seed && side[key] && side[key] !== sg) note(k, l, f);
+        side[key] = sg;
+      };
+      var drawnAt = function (f) { var c = {}; for (var k = 1; k <= 9; k++) c[k] = rendered(f, k); return c; };
+      var start = drawnAt(0);
+      for (var k = 1; k <= 9; k++) for (var l = 1; l <= 9; l++) if (k !== l) for (var si = 0; si < 7; si++) look(start, k, l, si, 0, true);
+      for (var f = 1; f < N; f++) for (var j = 1; j <= SUB; j++) {
+        if ((P.jumps || []).indexOf(f) >= 0) {
+          // The paper bends here: start the layer memory afresh from the drawn model after the jump.
+          if (j === 1) { side = {}; var re = drawnAt(f); for (var k2 = 1; k2 <= 9; k2++) for (var l2 = 1; l2 <= 9; l2++) if (k2 !== l2) for (var si2 = 0; si2 < 7; si2++) look(re, k2, l2, si2, f, true); }
+          continue;
+        }
+        var cur = {};
+        for (var k = 1; k <= 9; k++) {
+          var A = tri(f - 1, k), B = tri(f, k);
+          cur[k] = A.map(function (p, a) { return lerp(p, B[a], j / SUB); });
+        }
+        for (var k = 1; k <= 9; k++) for (var l = 1; l <= 9; l++) if (k !== l) for (var si = 0; si < 7; si++) look(cur, k, l, si, f, false);
+      }
+      var end = drawnAt(N - 1);
+      for (var k = 1; k <= 9; k++) for (var l = 1; l <= 9; l++) if (k !== l) for (var si = 0; si < 7; si++) {
+        var key = k + "," + l + "," + si, o = over(samples(end[k])[si], end[l]);
+        if (side[key] && o && o.inside && Math.abs(o.d) > 1e-6 && Math.sign(o.d) !== side[key]) note(k, l, N - 1);
+      }
+      return Object.keys(ev).map(function (p) {
+        return p + ": " + ev[p].map(function (r) { return "frames " + r[0] + (r[1] > r[0] ? "–" + r[1] : "") + " (step " + stepOf(r[0]) + ")"; }).join(", ");
+      });
+    }
+    var NS = P.marks.length - 1;
+    var stepOf = function (f) { for (var i = 0; i < NS; i++) if (f <= P.marks[i + 1]) return i + 1; return NS; };
+    var J = P.jumps || [];
+    var noJump = function (ev) { return ev.filter(function (line) { return !J.some(function (j) { return line.indexOf("frames " + j + " ") >= 0 || line.indexOf("frames " + j + "(") >= 0; }); }); };
+    var hingeOnly = function (k, l, si, f) {
+      var shared = TRI[k].filter(function (i) { return TRI[l].indexOf(i) >= 0; });
+      if (shared.length < 2 || si === 0) return false;
+      var a = (si - 1) >> 1, far = TRI[k].indexOf(TRI[k].filter(function (i) { return shared.indexOf(i) < 0; })[0]);
+      return !(si % 2 === 1 && a === far);
+    };
+    var raw = noJump(crossings(function (f, k) { return TRI[k].map(function (i) { return P.frames[f][i]; }); }, 0.004, hingeOnly));
+    report("Paper never passes through paper, except where the paper bends", "Points inside each piece must never change sides of another piece while lying over it, checked in every frame and at 4 steps between frames. Uses the true positions; layers closer than 0.004 (about paper thickness for a 5 cm triangle) count as touching, and their order is carried over from when they last separated. Pieces joined by a hinge are compared away from the hinge, since a hinge may swing through the flat position. The jump at frame " + J.join(", ") + " is the move that is not simulated (the paper bends there) and is left out.",
+      raw.length ? "FAIL" : "PASS", raw.length ? raw.join("\n") : "no crossings");
+    // Pieces joined by a hinge: the gap drawn between stacked layers shifts a piece slightly off its hinge, so
+    // compare them only away from the shared edge (centroid and the sample nearest the far corner).
+    var hingeSkip = function (k, l, si, f) {
+      if (si === 0) return false;
+      // Corners of k that lie on a corner of l: a shared hinge, or points that currently touch (the pieces turn about them
+      // like a book, so the drawn gap cannot be kept right next to them). Samples beside those corners are left out.
+      var X = P.frames[Math.min(f === undefined ? 0 : f, N - 1)], near = [];
+      for (var a = 0; a < 3; a++) {
+        var i = TRI[k][a];
+        if (TRI[l].indexOf(i) >= 0 || TRI[l].some(function (j) { return len(sub(X[i], X[j])) < 0.02; })) near.push(a);
+      }
+      if (!near.length) return false;
+      if (near.length === 3) return true;
+      var skipS = {};
+      near.forEach(function (a) { skipS[2 * a + 1] = 1; skipS[2 * a + 2] = 1; skipS[2 * ((a + 2) % 3) + 2] = 1; });
+      return !!skipS[si];
+    };
+    var drawn = noJump(crossings(rendered, 0.004, hingeSkip));
+    report("Stacked layers are drawn in a steady order", "The same test on the drawn model, including the thin gaps between stacked layers, finds layers that visibly swap order on screen (by more than 0.004, about paper thickness). Pieces joined by a hinge, or whose edges currently lie together, are compared away from that edge, where the drawn gap shifts them slightly.",
+      drawn.length ? "FAIL" : "PASS", drawn.length ? drawn.join("\n") : "no flicker");
+
+    /* ---------- Paper prediction ---------- */
+    var s0 = H.init, v0 = 0, t0 = E.vflex(s0, v0), lines = [];
+    var faces = function (st, f) { return [0, 1, 2, 3, 4, 5].map(function (k) { return H.faceOf[f(st, k).side]; }); };
+    var bt = faces(s0, E.topSide), bb = faces(s0, E.botSide), at = faces(t0, E.topSide), ab = faces(t0, E.botSide);
+    lines.push("Sectors are numbered from the first marked corner, going towards the second (sector 0 lies between");
+    lines.push("the first marked corner and the crease corner). Rows marked bot give the face underneath each");
+    lines.push("sector, still numbered as seen from above.");
+    lines.push("");
+    lines.push("sector      0  1  2  3  4  5");
+    var row = function (name, a) { return name + "   " + a.map(function (x, i) { return " " + a[(i + v0) % 6]; }).join(" "); };
+    lines.push(row("before top", bt)); lines.push(row("before bot", bb));
+    lines.push(row("after top ", at)); lines.push(row("after bot ", ab));
+    lines.push("");
+    lines.push("Shapes to expect: step 1 the hexagon folded in half along the crease through the marked corner; step 2 an open square pyramid with a pocket at its left corner;");
+    lines.push("step 3 the slide (not simulated); step 4 the pyramid closed, pocket tip on the apex, folded in half the other way; step 5 flat, centred where the apexes met.");
+    document.getElementById("paper").textContent = lines.join("\n");
+
+    var fails = results.filter(function (r) { return r.status === "FAIL"; });
+    var sum = (fails.length ? "FAIL" : "PASS") + ": " + (results.length - fails.length) + " of " + results.length + " checks pass" +
+      (fails.length ? "\nFailing: " + fails.map(function (r) { return r.name; }).join("; ") : "");
+    document.getElementById("summary").textContent = sum;
+    document.title = (fails.length ? "FAIL" : "PASS") + " " + (results.length - fails.length) + "/" + results.length + " · Flexagon Physics Tests";
+    document.body.setAttribute("data-done", "1");
+  }
+
+  var frame = document.getElementById("sim");
+  frame.addEventListener("load", function () {
+    var T = frame.contentWindow.__flexagonTest;
+    if (!T) { document.getElementById("summary").textContent = "FAIL: the simulation did not expose its test hooks."; document.title = "FAIL"; return; }
+    setTimeout(function () {
+      try { run(T); }
+      catch (e) { document.getElementById("summary").textContent = "FAIL: the tests crashed: " + e.message; document.title = "FAIL crash"; }
+    }, 30);
+  });
+})();
+</script>
+</body>
+</html>
